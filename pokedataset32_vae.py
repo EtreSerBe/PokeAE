@@ -77,8 +77,8 @@ expanded_full_X_HSV = np.append(X_full_HSV, Y_full_HSV, axis=1)
 print("expanded Xs and Ys ready")
 
 
-image_aug = tflearn.ImageAugmentation()
-image_aug.add_random_blur(sigma_max=2.0)
+# image_aug = tflearn.ImageAugmentation()
+# image_aug.add_random_blur(sigma_max=2.0)
 
 NUM_FILTERS_FIRST = 64
 NUM_FILTERS_SECOND = 64
@@ -97,7 +97,7 @@ EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 
 # Building the encoder
 # The size of the input should be 3108 = 3072 + 18*2
-networkInput = tflearn.input_data(shape=[None, original_dim + pokemon_types_dim], data_augmentation=image_aug)
+networkInput = tflearn.input_data(shape=[None, original_dim + pokemon_types_dim])  # data_augmentation=image_aug
 
 # Once the data is in, we need to split the pixel data and the types data.
 map_flat = tf.slice(networkInput, [0, 0], [-1, original_dim])
