@@ -64,7 +64,7 @@ test_Y = np.reshape(np.asarray(test_Y), newshape=[test_Y.shape[0], pokemon_types
 
 # Now we add the extra info from the Ys.
 expanded_X = np.append(X, Y, axis=1)
-expanded_augmented_X = utilities.image_augmentation(expanded_X)
+# expanded_augmented_X = utilities.image_augmentation(expanded_X)  # I need to make this not on runtime?
 expanded_Y = np.append(X, Y, axis=1)  # Not really used right now
 
 # Now, we do the same for the training data
@@ -169,7 +169,7 @@ model = tflearn.DNN(network)
 print("Preparing model to fit.")
 
 #"""
-model.fit(expanded_augmented_X, Y_targets=expanded_augmented_X,
+model.fit(expanded_X, Y_targets=expanded_X,
           n_epoch=100,
           shuffle=True,
           show_metric=True,
@@ -213,7 +213,7 @@ for i in range(0, len(encode_decode_sample)):
 
 
 print("Exporting reconstructed pokemon as an image.")
-utilities.export_as_atlas(expanded_augmented_X, reconstructed_pixels)
+utilities.export_as_atlas(expanded_X, reconstructed_pixels)
 correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
 # correct_indices = utilities.export_types_csv(new_types_array, reconstructed_types)
 
