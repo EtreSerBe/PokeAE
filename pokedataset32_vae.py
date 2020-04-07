@@ -30,22 +30,22 @@ import tensorflow as tf
 
 import tflearn
 import h5py
-import pokedataset32_vae_functions
+import PokeAE.pokedataset32_vae_functions as utilities
 from PIL import Image
 import colorsys
 
 # We don't need the Ys.
-X_full_HSV, Y_full_HSV = pokedataset32_vae_functions.prepare_dataset_for_input_layer('pokedataset32_full_HSV.h5')
+X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV.h5')
 
 # We don't need the Ys.
-X_full_RGB, Y_full_RGB = pokedataset32_vae_functions.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
+X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
 
 # Load the hdf5 dataset for the RGB data, to show it in the output.
-X_12_3_RGB, Y_12_3_RGB = pokedataset32_vae_functions.prepare_dataset_for_input_layer('pokedataset32_12_3_RGB.h5')
+X_12_3_RGB, Y_12_3_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_RGB.h5')
 
-X, Y = pokedataset32_vae_functions.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV.h5')
+X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV.h5')
 
-test_X, test_Y = pokedataset32_vae_functions.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV.h5',
+test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV.h5',
                                                                              in_dataset_x_label='pokedataset32_X_test',
                                                                              in_dataset_y_label='pokedataset32_Y_test')
 
@@ -64,7 +64,7 @@ test_Y = np.reshape(np.asarray(test_Y), newshape=[test_Y.shape[0], pokemon_types
 
 # Now we add the extra info from the Ys.
 expanded_X = np.append(X, Y, axis=1)
-expanded_augmented_X = pokedataset32_vae_functions.image_augmentation(expanded_X)
+expanded_augmented_X = utilities.image_augmentation(expanded_X)
 expanded_Y = np.append(X, Y, axis=1)  # Not really used right now
 
 # Now, we do the same for the training data
@@ -84,11 +84,11 @@ NUM_FILTERS_FIRST = 64
 NUM_FILTERS_SECOND = 64
 FILTER_SIZE_FIRST = 5
 FILTER_SIZE_SECOND = 3
-FILTER_STRIDES_FIRST = 2
+FILTER_STRIDES_FIRST = 1
 FILTER_STRIDES_SECOND = 1
 
-FULLY_CONNECTED_1_UNITS = 64
-FULLY_CONNECTED_2_UNITS = 16
+FULLY_CONNECTED_1_UNITS = 128
+FULLY_CONNECTED_2_UNITS = 64
 # FULLY_CONNECTED_3_UNITS = 64
 
 DECODER_WIDTH = 8
@@ -105,32 +105,32 @@ pokemonTypesFlat = tf.slice(networkInput, [0, original_dim], [-1, -1])
 
 # We reshape the flat versions to something more like the original.
 mapShape = tf.reshape(map_flat, [-1, image_dimension, image_dimension, image_color_dimension])
-print("mapShape dimensions, before Conv_2D #1 are: " + str(mapShape))  # 32, 32, 3 as should be.
+print("mapShape dimensions, before Conv_2D #1 are: " + str(mapShape))
 pokemonTypes = tf.reshape(pokemonTypesFlat, [-1, pokemon_types_dim])
 
 encoderStructure = tflearn.conv_2d(mapShape, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
                                    strides=FILTER_STRIDES_FIRST, activation='relu')
-print("encoderStructure before dropout is: " + str(encoderStructure))  # 32, 32, NUM_FILTERS
+print("encoderStructure before dropout is: " + str(encoderStructure))
 encoderStructure = tflearn.dropout(encoderStructure, 0.5)
-print("encoderStructure before max_pool_2D #1 is: " + str(encoderStructure))  # 32, 32, NUM_FILTERS
+print("encoderStructure before max_pool_2D #1 is: " + str(encoderStructure))
 encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
-print("encoderStructure before conv_2D #2 is: " + str(encoderStructure))  # 16, 16, 4
+print("encoderStructure before conv_2D #2 is: " + str(encoderStructure))
 encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
                                    strides=FILTER_STRIDES_SECOND, activation='relu')
-print("encoderStructure before max_pool_2D #2 is: " + str(encoderStructure))  #
+print("encoderStructure before max_pool_2D #2 is: " + str(encoderStructure))
 encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
-print("encoderStructure before flatten is: " + str(encoderStructure))  #
+print("encoderStructure before flatten is: " + str(encoderStructure))
 
 flatStructure = tflearn.flatten(encoderStructure)
 print("flatStructure is = " + str(flatStructure))
 flatStructureSize = flatStructure.shape[1]  # Why is it size 2048 with 8 filters and 1024 with 4?
 print('flatStructureSize = ' + str(flatStructureSize))
 
-encoder = tf.concat([flatStructure, pokemonTypes], 1)  # Embedded vector.
+encoder = tf.concat([flatStructure, pokemonTypes], 1)
 
 encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
 
-encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')  # embedded representation?
+encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')  # embedded representation? Yes.
 
 # decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
 
@@ -156,9 +156,6 @@ network = tf.concat([decoderStructure, decoderTypes], 1)
 
 print("network before the final fully_connected is: " + str(network))
 network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='relu')
-print("network before the regression is: " + str(network))
-
-print("encoder and decoder network declaration ready.")
 
 network = tflearn.regression(network, optimizer='adadelta',
                              metric='R2',
@@ -167,21 +164,17 @@ network = tflearn.regression(network, optimizer='adadelta',
 
 print("regression successful, network is now: " + str(network))
 
-# sess = tf.Session()
-
 model = tflearn.DNN(network)
-
-print("the model with the DNN network is: " + str(model))
 
 print("Preparing model to fit.")
 
 #"""
 model.fit(expanded_augmented_X, Y_targets=expanded_augmented_X,
-          n_epoch=5,
+          n_epoch=100,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=128,
+          batch_size=32,
           validation_set=0.2,  # It also accepts a float < 1 to performs a data split over training data.
           # validation_set=(expanded_test_X, expanded_test_X),
           run_id='encoder_decoder')
@@ -194,7 +187,7 @@ model.save("pokedatamodel32_April_7_1.tflearn")
 model.load("saved models from pokemon/pokedatamodel32_April_1_3.tflearn")
 
 # Add the fake types.
-new_types_array = pokedataset32_vae_functions.generate_all_one_type(len(X_full_HSV),
+new_types_array = utilities.generate_all_one_type(len(X_full_HSV),
                                                                     in_type="Fire", in_second_type="None")
 new_types_array = np.reshape(np.asarray(new_types_array), newshape=[new_types_array.shape[0], pokemon_types_dim])
 expanded_fake_X = np.append(X_full_HSV, new_types_array, axis=1)
@@ -220,13 +213,13 @@ for i in range(0, len(encode_decode_sample)):
 
 
 print("Exporting reconstructed pokemon as an image.")
-pokedataset32_vae_functions.export_as_atlas(expanded_augmented_X, reconstructed_pixels)
-correct_indices = pokedataset32_vae_functions.export_types_csv(Y_full_RGB, reconstructed_types)
-# correct_indices = pokedataset32_vae_functions.export_types_csv(new_types_array, reconstructed_types)
+utilities.export_as_atlas(expanded_augmented_X, reconstructed_pixels)
+correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
+# correct_indices = utilities.export_types_csv(new_types_array, reconstructed_types)
 
 correct_X_RGB = [X_full_RGB[i] for i in correct_indices]
 correct_reconstructed_pixels = [reconstructed_pixels[i] for i in correct_indices]
-pokedataset32_vae_functions.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
+utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
 
 """
 # I used this before to show the results, but now I have the whole image being saved.
