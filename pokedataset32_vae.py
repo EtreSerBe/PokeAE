@@ -78,14 +78,14 @@ print("expanded Xs and Ys ready")
 # image_aug = tflearn.ImageAugmentation()
 # image_aug.add_random_blur(sigma_max=2.0)
 
-NUM_FILTERS_FIRST = 16
-NUM_FILTERS_SECOND = 32
+NUM_FILTERS_FIRST = 64
+NUM_FILTERS_SECOND = 64
 FILTER_SIZE_FIRST = 5
-FILTER_SIZE_SECOND = 3
+FILTER_SIZE_SECOND = 5
 FILTER_STRIDES_FIRST = 1
 FILTER_STRIDES_SECOND = 1
 
-FULLY_CONNECTED_1_UNITS = 512
+FULLY_CONNECTED_1_UNITS = 512  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
 FULLY_CONNECTED_2_UNITS = 128
 FULLY_CONNECTED_3_UNITS = 64
 
@@ -157,15 +157,16 @@ decoderStructure = tflearn.flatten(decoderStructure)  # With 4 filters, it has 6
 network = tf.concat([decoderStructure, decoderTypes], 1)
 
 # Added this layer since maybe it was going from 32,768 to 3,108 units too fast
-network = tflearn.fully_connected(network, 8192, activation='relu')
+# NOTE: It did seem to help a little bit, but that's it.
+# network = tflearn.fully_connected(network, 8192, activation='relu')
 
 print("network before the final fully_connected is: " + str(network))
 network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='relu')
 
-network = tflearn.regression(network, optimizer='adadelta',
+network = tflearn.regression(network, optimizer='nesterov',
                              metric='R2',
                              loss='mean_square',
-                             learning_rate=0.005)  # adagrad?
+                             learning_rate=0.02)  # adagrad?
 
 print("regression successful, network is now: " + str(network))
 
@@ -175,11 +176,11 @@ print("Preparing model to fit.")
 
 # """
 model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=180,
+          n_epoch=300,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=32,
+          batch_size=64,
           validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
           # validation_set=(expanded_test_X, expanded_test_X),
           run_id='encoder_decoder')
