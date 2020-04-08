@@ -22,6 +22,21 @@ def prepare_dataset_for_input_layer(in_h5f_dataset_name, in_dataset_x_label="pok
     return h5f_x_values, h5f_y_values
 
 
+def image_flip_left_right(in_image_list, in_types_list):
+    out_all_images = in_image_list
+    for i_image in in_image_list:
+        pixels = i_image[0:3072]
+        reshaped_original = np.reshape(pixels, newshape=[32, 32, 3])
+        # First, get the flipped left-right.
+        flipped_image = np.fliplr(reshaped_original).flatten()
+        out_all_images = np.vstack((out_all_images, flipped_image))
+
+    out_types = in_types_list
+    out_types = np.vstack((out_types, out_types))  # The types are in the same order as the input, only duplicate them.
+    print("total number of images after augmentation: " + str(out_all_images.shape))
+    return out_all_images, out_types
+
+
 def image_augmentation(in_image_list):
     out_all_images = in_image_list
     for i_image in in_image_list:

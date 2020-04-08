@@ -19,7 +19,7 @@ import h5py
 import glob
 from PIL import Image
 import numpy as np
-
+import PokeAE.pokedataset32_vae_functions as utilities
 
 # As seen in https://stackoverflow.com/questions/4601373/better-way-to-shuffle-two-numpy-arrays-in-unison
 def unison_shuffled_copies(a, b):
@@ -103,12 +103,13 @@ for filename in filename_list:
         print('the number of pixels each image has is: ' + str(len(pixel_list)))
         pixel_data.append(pixel_list)  # add it to the variable with all the information.
 
-# Should be 809 or something.
+# Should be 891 or something.
 # print('The length of pixel_data is: ' + str(len(pixel_data)))  # correctly printed.
 
 # Make a 3-fold cross-validation split, so it's stable during development.
 pixel_data = np.asarray(pixel_data)
-print(pixel_data)
+# This line below is only used when the full dataset is to be saved.
+# pixel_data, one_hot_labels = utilities.image_flip_left_right(pixel_data, one_hot_labels)
 
 # unison_shuffled_copies(pixel_data, one_hot_labels)  # Shuffled along the first axis only.
 
@@ -128,8 +129,18 @@ print(len(labels))
 print(len(pixels_3))
 print(len(labels_3))
 
+pixels, labels = utilities.image_flip_left_right(pixels, labels)
+pixels_3, labels_3 = utilities.image_flip_left_right(pixels_3, labels_3)
+
+
 # Finally, put it into a h5f dataset and that's it.
-h5f = h5py.File('pokedataset32_12_3_RGB.h5', 'w')
+h5f = h5py.File('pokedataset32_12_3_RGB_Augmented.h5', 'w')
+"""
+# These two lines below are used when the full dataset is to be in one file.
+h5f.create_dataset('pokedataset32_X', data=pixel_data)
+h5f.create_dataset('pokedataset32_Y', data=one_hot_labels)
+"""
+# These four lines below are for the data split into train and test portions.
 h5f.create_dataset('pokedataset32_X', data=pixels)
 h5f.create_dataset('pokedataset32_Y', data=labels)
 h5f.create_dataset('pokedataset32_X_test', data=pixels_3)

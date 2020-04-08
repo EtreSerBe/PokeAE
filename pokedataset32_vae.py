@@ -87,9 +87,9 @@ FILTER_SIZE_SECOND = 3
 FILTER_STRIDES_FIRST = 1
 FILTER_STRIDES_SECOND = 1
 
-FULLY_CONNECTED_1_UNITS = 128
-FULLY_CONNECTED_2_UNITS = 64
-# FULLY_CONNECTED_3_UNITS = 64
+FULLY_CONNECTED_1_UNITS = 512
+FULLY_CONNECTED_2_UNITS = 128
+FULLY_CONNECTED_3_UNITS = 64
 
 DECODER_WIDTH = 8
 EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
@@ -130,11 +130,15 @@ encoder = tf.concat([flatStructure, pokemonTypes], 1)
 
 encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
 
-encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')  # embedded representation? Yes.
+encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
 
-# decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
+decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_3_UNITS, activation='relu')# embedded representation? Yes.
 
-decoder = tflearn.fully_connected(encoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
+decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
+
+decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
+
+decoder = tflearn.fully_connected(decoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
 
 decoderStructure = tf.slice(decoder, [0, 0], [-1, EMBEDDED_VECTOR_TOTAL])
 decoderTypes = tf.slice(decoder, [0, EMBEDDED_VECTOR_TOTAL], [-1, -1])
@@ -160,7 +164,7 @@ network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, act
 network = tflearn.regression(network, optimizer='adadelta',
                              metric='R2',
                              loss='mean_square',
-                             learning_rate=0.07)  # adagrad?
+                             learning_rate=0.001)  # adagrad?
 
 print("regression successful, network is now: " + str(network))
 
