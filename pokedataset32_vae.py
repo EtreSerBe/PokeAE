@@ -43,11 +43,11 @@ X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset3
 # Load the hdf5 dataset for the RGB data, to show it in the output.
 X_12_3_RGB, Y_12_3_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_RGB.h5')
 
-X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV.h5')
+X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV_Augmented.h5')
 
-test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV.h5',
-                                                                             in_dataset_x_label='pokedataset32_X_test',
-                                                                             in_dataset_y_label='pokedataset32_Y_test')
+test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV_Augmented.h5',
+                                                           in_dataset_x_label='pokedataset32_X_test',
+                                                           in_dataset_y_label='pokedataset32_Y_test')
 
 # 3072 in total size.
 # 891 total images.
@@ -63,8 +63,7 @@ Y = np.reshape(np.asarray(Y), newshape=[Y.shape[0], pokemon_types_dim])
 test_Y = np.reshape(np.asarray(test_Y), newshape=[test_Y.shape[0], pokemon_types_dim])
 
 # Now we add the extra info from the Ys.
-expanded_X = np.append(X, Y, axis=1)
-# expanded_augmented_X = utilities.image_augmentation(expanded_X)  # I need to make this not on runtime?
+expanded_X = np.append(X, Y, axis=1)  # It already contains the Flip-left-right augmentation.
 expanded_Y = np.append(X, Y, axis=1)  # Not really used right now
 
 # Now, we do the same for the training data
@@ -76,12 +75,11 @@ expanded_full_X_HSV = np.append(X_full_HSV, Y_full_HSV, axis=1)
 
 print("expanded Xs and Ys ready")
 
-
 # image_aug = tflearn.ImageAugmentation()
 # image_aug.add_random_blur(sigma_max=2.0)
 
-NUM_FILTERS_FIRST = 64
-NUM_FILTERS_SECOND = 64
+NUM_FILTERS_FIRST = 16
+NUM_FILTERS_SECOND = 32
 FILTER_SIZE_FIRST = 5
 FILTER_SIZE_SECOND = 3
 FILTER_STRIDES_FIRST = 1
@@ -132,7 +130,7 @@ encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='
 
 encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
 
-decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_3_UNITS, activation='relu')# embedded representation? Yes.
+decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_3_UNITS, activation='relu')  # embedded representation? Yes.
 
 decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
 
@@ -158,13 +156,16 @@ decoderStructure = tflearn.flatten(decoderStructure)  # With 4 filters, it has 6
 
 network = tf.concat([decoderStructure, decoderTypes], 1)
 
+# Added this layer since maybe it was going from 32,768 to 3,108 units too fast
+network = tflearn.fully_connected(network, 8192, activation='relu')
+
 print("network before the final fully_connected is: " + str(network))
 network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='relu')
 
 network = tflearn.regression(network, optimizer='adadelta',
                              metric='R2',
                              loss='mean_square',
-                             learning_rate=0.001)  # adagrad?
+                             learning_rate=0.005)  # adagrad?
 
 print("regression successful, network is now: " + str(network))
 
@@ -172,19 +173,19 @@ model = tflearn.DNN(network)
 
 print("Preparing model to fit.")
 
-#"""
+# """
 model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=100,
+          n_epoch=180,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
           batch_size=32,
-          validation_set=0.2,  # It also accepts a float < 1 to performs a data split over training data.
+          validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
           # validation_set=(expanded_test_X, expanded_test_X),
           run_id='encoder_decoder')
 
-model.save("pokedatamodel32_April_7_1.tflearn")
-#"""
+model.save("pokedatamodel32_April_8_1.tflearn")
+# """
 
 """
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
@@ -215,12 +216,12 @@ for i in range(0, len(encode_decode_sample)):
     reshaped_types = np.reshape(encode_decode_sample[i][3072:3108], [2, 18])
     reconstructed_types.append(reshaped_types)
 
-
 print("Exporting reconstructed pokemon as an image.")
-utilities.export_as_atlas(expanded_X, reconstructed_pixels)
+utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)
 correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
 # correct_indices = utilities.export_types_csv(new_types_array, reconstructed_types)
 
+# This is used to export an image only containing the ones whose types were correctly predicted by the NN.
 correct_X_RGB = [X_full_RGB[i] for i in correct_indices]
 correct_reconstructed_pixels = [reconstructed_pixels[i] for i in correct_indices]
 utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
