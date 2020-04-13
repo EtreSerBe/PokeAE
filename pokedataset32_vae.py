@@ -78,18 +78,24 @@ print("expanded Xs and Ys ready")
 # image_aug = tflearn.ImageAugmentation()
 # image_aug.add_random_blur(sigma_max=2.0)
 
+# Number of filters in Autoencoder's order.
 NUM_FILTERS_FIRST = 64
 NUM_FILTERS_SECOND = 64
+NUM_FILTERS_THIRD = 64
+# Filter sizes
 FILTER_SIZE_FIRST = 5
 FILTER_SIZE_SECOND = 5
+FILTER_SIZE_THIRD = 1
+# Strides
 FILTER_STRIDES_FIRST = 1
 FILTER_STRIDES_SECOND = 1
+FILTER_STRIDES_THIRD = 1
 
-FULLY_CONNECTED_1_UNITS = 512  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
-FULLY_CONNECTED_2_UNITS = 128
-FULLY_CONNECTED_3_UNITS = 64
+FULLY_CONNECTED_1_UNITS = 256  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
+FULLY_CONNECTED_2_UNITS = 64
+FULLY_CONNECTED_3_UNITS = 16
 
-DECODER_WIDTH = 8
+DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
 EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
 EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 
@@ -119,6 +125,12 @@ print("encoderStructure before max_pool_2D #2 is: " + str(encoderStructure))
 encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
 print("encoderStructure before flatten is: " + str(encoderStructure))
 
+# Added new conv and pool layers to reduce the size before the Fully connected layers come in.
+# The size should be 4*4*NUM_FILTERS_THIRD after it. 16*64 = 1024
+"""encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_THIRD, FILTER_SIZE_THIRD,
+                                   strides=FILTER_STRIDES_THIRD, activation='relu')
+encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)"""
+
 flatStructure = tflearn.flatten(encoderStructure)
 print("flatStructure is = " + str(flatStructure))
 flatStructureSize = flatStructure.shape[1]  # Why is it size 2048 with 8 filters and 1024 with 4?
@@ -132,9 +144,9 @@ encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='
 
 decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_3_UNITS, activation='relu')  # embedded representation? Yes.
 
-decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
+decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_2_UNITS, activation='relu')
 
-decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
+decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_1_UNITS, activation='relu')
 
 decoder = tflearn.fully_connected(decoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
 
@@ -145,14 +157,20 @@ print("decoder types size is: " + str(decoderTypes))
 decoderStructure = tf.reshape(decoderStructure, [-1, DECODER_WIDTH, DECODER_WIDTH,
                                                  image_color_dimension])
 
+# Decoder's convolution and up-sampling process.
+"""decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_THIRD, FILTER_SIZE_THIRD,
+                                   strides=FILTER_STRIDES_THIRD, activation='relu')
+decoderStructure = tflearn.upsample_2d(decoderStructure, 2)"""
+
 decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
                                    strides=FILTER_STRIDES_SECOND, activation='relu')
 decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+
 decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
                                    strides=FILTER_STRIDES_FIRST, activation='relu')
 decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
 
-decoderStructure = tflearn.flatten(decoderStructure)  # With 4 filters, it has 65536*3018 connections...
+decoderStructure = tflearn.flatten(decoderStructure)  # With 64 filters, it has 3108*64 = 198,912 connections...
 
 network = tf.concat([decoderStructure, decoderTypes], 1)
 
@@ -166,7 +184,9 @@ network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, act
 network = tflearn.regression(network, optimizer='nesterov',
                              metric='R2',
                              loss='mean_square',
-                             learning_rate=0.02)  # adagrad?
+                             learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
+
+#proximaladagrad did meh, almost same as others.
 
 print("regression successful, network is now: " + str(network))
 
@@ -176,7 +196,7 @@ print("Preparing model to fit.")
 
 # """
 model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=300,
+          n_epoch=200,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
@@ -185,7 +205,7 @@ model.fit(expanded_X, Y_targets=expanded_X,
           # validation_set=(expanded_test_X, expanded_test_X),
           run_id='encoder_decoder')
 
-model.save("pokedatamodel32_April_8_1.tflearn")
+model.save("pokedatamodel32_April_13_1.tflearn")
 # """
 
 """
