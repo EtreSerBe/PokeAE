@@ -34,6 +34,7 @@ import PokeAE.pokedataset32_vae_functions as utilities
 from PIL import Image
 import colorsys
 
+
 # We don't need the Ys.
 X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV.h5')
 
@@ -49,18 +50,8 @@ test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_H
                                                            in_dataset_x_label='pokedataset32_X_test',
                                                            in_dataset_y_label='pokedataset32_Y_test')
 
-# 3072 in total size.
-# 891 total images.
-
-# Params
-image_dimension = 32
-image_color_dimension = 3
-original_dim = 3072  # 32 x 32 RGB images.
-# hidden_dim = 768
-# latent_dim = 2  # Why is latent dim = 2?
-pokemon_types_dim = 18 * 2  # 18 *2, since we need space for the two possible types.
-Y = np.reshape(np.asarray(Y), newshape=[Y.shape[0], pokemon_types_dim])
-test_Y = np.reshape(np.asarray(test_Y), newshape=[test_Y.shape[0], pokemon_types_dim])
+Y = np.reshape(np.asarray(Y), newshape=[Y.shape[0], utilities.pokemon_types_dim])
+test_Y = np.reshape(np.asarray(test_Y), newshape=[test_Y.shape[0], utilities.pokemon_types_dim])
 
 # Now we add the extra info from the Ys.
 expanded_X = np.append(X, Y, axis=1)  # It already contains the Flip-left-right augmentation.
@@ -78,134 +69,35 @@ print("expanded Xs and Ys ready")
 # image_aug = tflearn.ImageAugmentation()
 # image_aug.add_random_blur(sigma_max=2.0)
 
-# Number of filters in Autoencoder's order.
-NUM_FILTERS_FIRST = 64
-NUM_FILTERS_SECOND = 64
-NUM_FILTERS_THIRD = 64
-# Filter sizes
-FILTER_SIZE_FIRST = 5
-FILTER_SIZE_SECOND = 5
-FILTER_SIZE_THIRD = 1
-# Strides
-FILTER_STRIDES_FIRST = 1
-FILTER_STRIDES_SECOND = 1
-FILTER_STRIDES_THIRD = 1
+# I put the network's definition in the
 
-FULLY_CONNECTED_1_UNITS = 256  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
-FULLY_CONNECTED_2_UNITS = 64
-FULLY_CONNECTED_3_UNITS = 16
+network_instance = utilities.get_network()
 
-DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
-EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
-EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
+network_instance = tflearn.regression(network_instance, optimizer='nesterov',
+                                      metric='R2',
+                                      loss='mean_square',
+                                      learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
 
-# Building the encoder
-# The size of the input should be 3108 = 3072 + 18*2
-networkInput = tflearn.input_data(shape=[None, original_dim + pokemon_types_dim])  # data_augmentation=image_aug
+# proximaladagrad did meh, almost same as others.
+# With adadelta I can't get it to do anything with a small learning rate.
+# Adagrad gets stuck around- 0.2400 R2.
 
-# Once the data is in, we need to split the pixel data and the types data.
-map_flat = tf.slice(networkInput, [0, 0], [-1, original_dim])
-pokemonTypesFlat = tf.slice(networkInput, [0, original_dim], [-1, -1])
-
-# We reshape the flat versions to something more like the original.
-mapShape = tf.reshape(map_flat, [-1, image_dimension, image_dimension, image_color_dimension])
-print("mapShape dimensions, before Conv_2D #1 are: " + str(mapShape))
-pokemonTypes = tf.reshape(pokemonTypesFlat, [-1, pokemon_types_dim])
-
-encoderStructure = tflearn.conv_2d(mapShape, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
-                                   strides=FILTER_STRIDES_FIRST, activation='relu')
-print("encoderStructure before dropout is: " + str(encoderStructure))
-encoderStructure = tflearn.dropout(encoderStructure, 0.5)
-print("encoderStructure before max_pool_2D #1 is: " + str(encoderStructure))
-encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
-print("encoderStructure before conv_2D #2 is: " + str(encoderStructure))
-encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
-                                   strides=FILTER_STRIDES_SECOND, activation='relu')
-print("encoderStructure before max_pool_2D #2 is: " + str(encoderStructure))
-encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
-print("encoderStructure before flatten is: " + str(encoderStructure))
-
-# Added new conv and pool layers to reduce the size before the Fully connected layers come in.
-# The size should be 4*4*NUM_FILTERS_THIRD after it. 16*64 = 1024
-"""encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_THIRD, FILTER_SIZE_THIRD,
-                                   strides=FILTER_STRIDES_THIRD, activation='relu')
-encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)"""
-
-flatStructure = tflearn.flatten(encoderStructure)
-print("flatStructure is = " + str(flatStructure))
-flatStructureSize = flatStructure.shape[1]  # Why is it size 2048 with 8 filters and 1024 with 4?
-print('flatStructureSize = ' + str(flatStructureSize))
-
-encoder = tf.concat([flatStructure, pokemonTypes], 1)
-
-encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
-
-encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
-
-decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_3_UNITS, activation='relu')  # embedded representation? Yes.
-
-decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_2_UNITS, activation='relu')
-
-decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_1_UNITS, activation='relu')
-
-decoder = tflearn.fully_connected(decoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
-
-decoderStructure = tf.slice(decoder, [0, 0], [-1, EMBEDDED_VECTOR_TOTAL])
-decoderTypes = tf.slice(decoder, [0, EMBEDDED_VECTOR_TOTAL], [-1, -1])
-print("decoder types size is: " + str(decoderTypes))
-
-decoderStructure = tf.reshape(decoderStructure, [-1, DECODER_WIDTH, DECODER_WIDTH,
-                                                 image_color_dimension])
-
-# Decoder's convolution and up-sampling process.
-"""decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_THIRD, FILTER_SIZE_THIRD,
-                                   strides=FILTER_STRIDES_THIRD, activation='relu')
-decoderStructure = tflearn.upsample_2d(decoderStructure, 2)"""
-
-decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
-                                   strides=FILTER_STRIDES_SECOND, activation='relu')
-decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
-
-decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
-                                   strides=FILTER_STRIDES_FIRST, activation='relu')
-decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
-
-decoderStructure = tflearn.flatten(decoderStructure)  # With 64 filters, it has 3108*64 = 198,912 connections...
-
-network = tf.concat([decoderStructure, decoderTypes], 1)
-
-# Added this layer since maybe it was going from 32,768 to 3,108 units too fast
-# NOTE: It did seem to help a little bit, but that's it.
-# network = tflearn.fully_connected(network, 8192, activation='relu')
-
-print("network before the final fully_connected is: " + str(network))
-network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='relu')
-
-network = tflearn.regression(network, optimizer='nesterov',
-                             metric='R2',
-                             loss='mean_square',
-                             learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
-
-#proximaladagrad did meh, almost same as others.
-
-print("regression successful, network is now: " + str(network))
-
-model = tflearn.DNN(network)
+model = tflearn.DNN(network_instance)
 
 print("Preparing model to fit.")
 
 # """
 model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=200,
+          n_epoch=50,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=64,
+          batch_size=128,
           validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
           # validation_set=(expanded_test_X, expanded_test_X),
           run_id='encoder_decoder')
 
-model.save("pokedatamodel32_April_13_1.tflearn")
+model.save("pokedatamodel32_April_20_1.tflearn")
 # """
 
 """
