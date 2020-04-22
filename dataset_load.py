@@ -2,24 +2,21 @@
 file into a python list. We specify 'target_column' argument to indicate that our labels (survived or not)
  are located in the first column (id: 0). The function will return a tuple: (data, labels)."""
 
-"""import numpy as np
-import tflearn
-
-# Download the Titanic dataset
-from tflearn.datasets import titanic
-titanic.download_dataset('titanic_dataset.csv')
-
-from tflearn.data_utils import load_csv
-data, labels = load_csv('pokemontypes.csv', target_column=0, columns_to_ignore=0,
-                        categorical_labels=True, n_classes=18)
-"""
 import os
 import csv
 import h5py
 import glob
-from PIL import Image
 import numpy as np
 import PokeAE.pokedataset32_vae_functions as utilities
+from PIL import Image
+from imgaug import augmenters as iaa
+
+
+# Important parameters for the data set creation. Modifying them will change the final set generated.
+image_format_to_use = "HSV"
+full_dataset = False
+use_augmentation = True
+
 
 # As seen in https://stackoverflow.com/questions/4601373/better-way-to-shuffle-two-numpy-arrays-in-unison
 def unison_shuffled_copies(a, b):
@@ -85,77 +82,65 @@ one_hot_labels = np.asarray(one_hot_labels)
 source_folder = 'poke3232dataset/'
 
 pixel_data = []
+image_list = []
 
+# This was important, if not re-sorted, it used a non-numeric order, which was not desired in this case.
 filename_list = glob.glob(source_folder+'*.png')
 filename_list.sort(key=sortKeyFunction)
-print('The filenames ordered by number is: ')
-print(filename_list)
 
-
-# X is the pixel data for the pokemon.
+# Now, the images need to be augmented BEFORE converting it to the HSV color space.
 for filename in filename_list:
     with Image.open(filename) as image:
+        # Note, it is always converted to RBG, to ignore the Alpha channel
+        # and because augmentation library (aleju/imgaug) works on RGB color space.
         im = image.convert('RGB')
-        pixel_list = np.asarray(im.getdata()).flatten()
-        pixel_list = np.true_divide(pixel_list, 255.)  # Very important to normalize your inputs!
-        print(filename)
-        # NOTE: Check if the pixels are triplets or are already flattened.
-        print('the number of pixels each image has is: ' + str(len(pixel_list)))
-        pixel_data.append(pixel_list)  # add it to the variable with all the information.
+        pixel_matrix = np.asarray(im.getdata())  # Make the Width*Height*Depth matrices
+        pixel_matrix = np.reshape(pixel_matrix, newshape=[32, 32, 3])
+        pixel_matrix = pixel_matrix.astype(dtype=np.uint8)
+        image_list.append(pixel_matrix)  # Need them all stored in one container for augmentation.
 
-# Should be 891 or something.
-# print('The length of pixel_data is: ' + str(len(pixel_data)))  # correctly printed.
+if use_augmentation:
+    print("total images before augmentation is: " + str(len(image_list)))
+    pixel_data, label_data = utilities.image_augmentation(image_list, one_hot_labels)
+    print("data augmentation successful.")
+else:  # If no augmentation will be applied.
+    pixel_data = image_list  # Only pass the variables to the correct names.
+    label_data = one_hot_labels
 
-# Make a 3-fold cross-validation split, so it's stable during development.
-pixel_data = np.asarray(pixel_data)
-# This line below is only used when the full dataset is to be saved.
-# pixel_data, one_hot_labels = utilities.image_flip_left_right(pixel_data, one_hot_labels)
+pixel_data = np.asarray(pixel_data).astype(dtype=np.float)  # Float64 by default.
+
+# Now, we need to put them in the correct format according to the desired set.
+pixel_data = utilities.convert_to_format(pixel_data, image_format_to_use)
 
 # unison_shuffled_copies(pixel_data, one_hot_labels)  # Shuffled along the first axis only.
 
-# NOTE: Make a better way to automatize this latter. (26/2/2020)
-pixels_1 = pixel_data[0:370]
-pixels_2 = pixel_data[370:741]
-pixels_3 = pixel_data[741:891]
-labels_1 = one_hot_labels[0:370]
-labels_2 = one_hot_labels[370:741]
-labels_3 = one_hot_labels[741:891]
-
-pixels = np.concatenate((pixels_1, pixels_2))
-labels = np.concatenate((labels_1, labels_2))
-
-print(len(pixels))
-print(len(labels))
-print(len(pixels_3))
-print(len(labels_3))
-
-pixels, labels = utilities.image_flip_left_right(pixels, labels)
-pixels_3, labels_3 = utilities.image_flip_left_right(pixels_3, labels_3)
-
-
 # Finally, put it into a h5f dataset and that's it.
-h5f = h5py.File('pokedataset32_12_3_RGB_Augmented.h5', 'w')
-"""
-# These two lines below are used when the full dataset is to be in one file.
-h5f.create_dataset('pokedataset32_X', data=pixel_data)
-h5f.create_dataset('pokedataset32_Y', data=one_hot_labels)
-"""
-# These four lines below are for the data split into train and test portions.
-h5f.create_dataset('pokedataset32_X', data=pixels)
-h5f.create_dataset('pokedataset32_Y', data=labels)
-h5f.create_dataset('pokedataset32_X_test', data=pixels_3)
-h5f.create_dataset('pokedataset32_Y_test', data=labels_3)
-h5f.close()
+if full_dataset:
+    h5f = h5py.File('pokedataset32_full_' + image_format_to_use +
+                    ('_Augmented' if use_augmentation else '') + '.h5', 'w')
+    # These two lines below are used when the full data set is to be in one file.
+    h5f.create_dataset('pokedataset32_X', data=pixel_data)
+    h5f.create_dataset('pokedataset32_Y', data=label_data)
+    h5f.close()
+else:  # If it has train and test separation.
+    # NOTE: Make a better way to automatize this latter. (26/2/2020)
+    training_elements = int((len(pixel_data) / 100) * 85)  # This will give us 15% for testing
+    pixels_train = pixel_data[0:training_elements]  # 85% for training & validation, as TFLearn does the split for us.
+    pixels_test = pixel_data[training_elements:]  # This is the 15% for testing
 
-# build_hdf5_image_dataset
+    labels_train = label_data[0:training_elements]
+    labels_test = label_data[training_elements:]
 
+    print(len(pixels_train))
+    print(len(labels_train))
+    print(len(pixels_test))
+    print(len(labels_test))
 
-"""
-# Load path/class_id image file:
-# dataset_file = 'my__pokemon_dataset.txt'
-dataset_file = 'poke3232dataset'
-
-# Build a HDF5 dataset (only required once)
-from tflearn.data_utils import build_hdf5_image_dataset
-build_hdf5_image_dataset(dataset_file, image_shape=(32, 32), mode='folder', output_path='poke3232_dataset.h5',
-                         categorical_labels=True, normalize=True)"""
+    h5f = h5py.File('pokedataset32_train_' + image_format_to_use +
+                    ('_Augmented' if use_augmentation else '') + '.h5', 'w')
+    # These four lines below are for the data split into train and test portions.
+    h5f.create_dataset('pokedataset32_X', data=pixels_train)
+    h5f.create_dataset('pokedataset32_Y', data=labels_train)
+    h5f.create_dataset('pokedataset32_X_test', data=pixels_test)
+    h5f.create_dataset('pokedataset32_Y_test', data=labels_test)
+    h5f.close()

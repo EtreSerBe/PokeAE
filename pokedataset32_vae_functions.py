@@ -9,6 +9,7 @@ import h5py
 import imgaug as ia
 import imgaug.augmenters as iaa
 import operator
+import matplotlib.colors
 
 type_to_categorical = ['Bug', 'Dark', 'Dragon', 'Electric', 'Fairy', 'Fighting', 'Fire', 'Flying',
                        'Ghost', 'Grass', 'Ground', 'Ice', 'Normal', 'Poison', 'Psychic', 'Rock', 'Steel', 'Water']
@@ -22,21 +23,21 @@ pokemon_types_dim = 18 * 2  # 18 *2, since we need space for the two possible ty
 
 def get_network():
     # Number of filters in Autoencoder's order.
-    NUM_FILTERS_FIRST = 64
-    NUM_FILTERS_SECOND = 128
+    NUM_FILTERS_FIRST = 32
+    NUM_FILTERS_SECOND = 32
     NUM_FILTERS_THIRD = 64
     # Filter sizes
-    FILTER_SIZE_FIRST = 3
-    FILTER_SIZE_SECOND = 3
+    FILTER_SIZE_FIRST = 5
+    FILTER_SIZE_SECOND = 5
     FILTER_SIZE_THIRD = 1
     # Strides
     FILTER_STRIDES_FIRST = 1
     FILTER_STRIDES_SECOND = 1
     FILTER_STRIDES_THIRD = 1
 
-    FULLY_CONNECTED_1_UNITS = 128  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
-    FULLY_CONNECTED_2_UNITS = 64
-    FULLY_CONNECTED_3_UNITS = 32
+    FULLY_CONNECTED_1_UNITS = 256  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
+    FULLY_CONNECTED_2_UNITS = 128
+    FULLY_CONNECTED_3_UNITS = 64
 
     DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
     EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
@@ -154,21 +155,67 @@ def image_flip_left_right(in_image_list, in_types_list):
     return out_all_images, out_types
 
 
-def image_augmentation(in_image_list):
-    out_all_images = in_image_list
-    for i_image in in_image_list:
-        pixels = i_image[0:3072]
-        # print(str(len(pixels)))
-        types = i_image[3071:-1]
-        reshaped_original = np.reshape(pixels, newshape=[32, 32, 3])
-        # First, get the flipped left-right.
-        flipped_image = np.fliplr(reshaped_original).flatten()
-        flipped_image = np.append(flipped_image, types)
-        print(len(flipped_image))
-        out_all_images = np.vstack((out_all_images, flipped_image))
+def image_augmentation(in_image_list, in_types_list, in_flip_lr=True, in_gamma_contrast=True,
+                       in_multiply_saturation=True, in_multiply_brightness=True,
+                       in_multiply_hue=True, in_gaussian_blur=True):
+    out_all_images = []
+    out_all_images.extend(in_image_list)
+    out_all_types = []
+    out_all_types.extend(in_types_list)
 
-    print("total number of images after augmentation: " + str(out_all_images.shape))
-    return out_all_images
+    if in_flip_lr:
+        images_aug = iaa.Fliplr(1.0)(images=in_image_list)
+        out_all_images.extend(images_aug)
+    if in_gamma_contrast:
+        images_aug = iaa.GammaContrast((0.75, 1.25))(images=in_image_list)
+        out_all_images.extend(images_aug)
+    if in_multiply_saturation:
+        images_aug = iaa.MultiplySaturation((0.5, 1.5), from_colorspace='RGB')(images=in_image_list)
+        out_all_images.extend(images_aug)
+    if in_multiply_brightness:
+        images_aug = iaa.MultiplyBrightness((0.5, 1.5))(images=in_image_list)
+        out_all_images.extend(images_aug)
+    if in_multiply_hue:
+        images_aug = iaa.MultiplyHue((0.8, 1.2))(images=in_image_list)
+        out_all_images.extend(images_aug)
+    if in_gaussian_blur:
+        images_aug = iaa.GaussianBlur(0.75)(images=in_image_list)
+        out_all_images.extend(images_aug)
+
+    print("The size of Out_all_images is: " + str(len(out_all_images)))
+    for i in range(0, int(len(out_all_images)/len(in_types_list))-1):
+        out_all_types.extend(in_types_list)
+
+    print("The size of Out_all_types is: " + str(len(out_all_types)))
+
+    print("total number of images after augmentation: " + str(len(out_all_images)))
+    return out_all_images, out_all_types
+
+
+def convert_to_format(in_image_list, in_format_string):
+    out_image_list = []
+    if 'RGB' == in_format_string:
+        for current_image in in_image_list:
+            current_image = np.asarray(current_image).flatten()
+            current_image = np.true_divide(current_image, 255.)
+            out_image_list.append(current_image)
+    elif 'HSV' == in_format_string:
+        for current_image in in_image_list:
+            # NOTE: The division by 255 must be performed BEFORE the conversion to HSV. Corrected.
+            current_image = np.true_divide(current_image, 255.)
+            current_image = matplotlib.colors.rgb_to_hsv(current_image)
+            current_image = np.asarray(current_image).flatten()
+            out_image_list.append(current_image)
+    elif 'HSV_TO_RGB' == in_format_string:
+        for current_image in in_image_list:
+            current_image = np.reshape(current_image, [32, 32, 3])
+            current_image = matplotlib.colors.hsv_to_rgb(current_image)
+            current_image = np.asarray(current_image).flatten()
+            # current_image = np.multiply(current_image, 255.)
+            out_image_list.append(current_image)
+    else:
+        print("Error in convert to format: Non valid in_format_string received.")
+    return out_image_list  # Check that the changes to its content remain after return.
 
 
 def print_pokemon_types(types, in_print_all=True):

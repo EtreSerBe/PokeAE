@@ -42,13 +42,20 @@ X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset3
 X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
 
 # Load the hdf5 dataset for the RGB data, to show it in the output.
-X_12_3_RGB, Y_12_3_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_RGB.h5')
+X_12_3_RGB, Y_12_3_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_train_RGB.h5')
 
-X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV_Augmented.h5')
+X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5')
 
-test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV_Augmented.h5',
+test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5',
                                                            in_dataset_x_label='pokedataset32_X_test',
                                                            in_dataset_y_label='pokedataset32_Y_test')
+
+
+# NOTE: Why the hell is this showing all blue? Also, i think the augmentations are TOO small.
+# Flip-left-right is correct.
+X = utilities.convert_to_format(X[:], 'HSV_TO_RGB')
+utilities.export_as_atlas(X, X)
+
 
 Y = np.reshape(np.asarray(Y), newshape=[Y.shape[0], utilities.pokemon_types_dim])
 test_Y = np.reshape(np.asarray(test_Y), newshape=[test_Y.shape[0], utilities.pokemon_types_dim])
@@ -92,12 +99,12 @@ model.fit(expanded_X, Y_targets=expanded_X,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=128,
+          batch_size=64,
           validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
           # validation_set=(expanded_test_X, expanded_test_X),
           run_id='encoder_decoder')
 
-model.save("pokedatamodel32_April_20_1.tflearn")
+# model.save("pokedatamodel32_April_20_1.tflearn")
 # """
 
 """
@@ -130,7 +137,7 @@ for i in range(0, len(encode_decode_sample)):
     reconstructed_types.append(reshaped_types)
 
 print("Exporting reconstructed pokemon as an image.")
-utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)
+utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)  # I have checked that it works perfectly.
 correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
 # correct_indices = utilities.export_types_csv(new_types_array, reconstructed_types)
 
