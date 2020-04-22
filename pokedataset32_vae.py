@@ -51,10 +51,10 @@ test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_
                                                            in_dataset_y_label='pokedataset32_Y_test')
 
 
-# NOTE: Why the hell is this showing all blue? Also, i think the augmentations are TOO small.
-# Flip-left-right is correct.
-X = utilities.convert_to_format(X[:], 'HSV_TO_RGB')
-utilities.export_as_atlas(X, X)
+# NOTE: Use these lines to output a visualization of the data sets, if you think
+# there is any problem with them. But I've checked and they seem correct.
+# X = utilities.convert_to_format(X[:], 'HSV_TO_RGB')
+# utilities.export_as_atlas(X, X)
 
 
 Y = np.reshape(np.asarray(Y), newshape=[Y.shape[0], utilities.pokemon_types_dim])
@@ -70,14 +70,9 @@ expanded_test_Y = np.append(test_X, test_Y, axis=1)  # Not used right now.
 
 # Right now it's the only expanded full that we need.
 expanded_full_X_HSV = np.append(X_full_HSV, Y_full_HSV, axis=1)
-
 print("expanded Xs and Ys ready")
 
-# image_aug = tflearn.ImageAugmentation()
-# image_aug.add_random_blur(sigma_max=2.0)
-
-# I put the network's definition in the
-
+# I put the network's definition in the pokedataset32_vae_functions.py file, to unify it with the load model.
 network_instance = utilities.get_network()
 
 network_instance = tflearn.regression(network_instance, optimizer='nesterov',
@@ -93,7 +88,6 @@ model = tflearn.DNN(network_instance)
 
 print("Preparing model to fit.")
 
-# """
 model.fit(expanded_X, Y_targets=expanded_X,
           n_epoch=50,
           shuffle=True,
@@ -104,19 +98,7 @@ model.fit(expanded_X, Y_targets=expanded_X,
           # validation_set=(expanded_test_X, expanded_test_X),
           run_id='encoder_decoder')
 
-# model.save("pokedatamodel32_April_20_1.tflearn")
-# """
-
-"""
-# This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
-model.load("saved models from pokemon/pokedatamodel32_April_1_3.tflearn")
-
-# Add the fake types.
-new_types_array = utilities.generate_all_one_type(len(X_full_HSV),
-                                                                    in_type="Fire", in_second_type="None")
-new_types_array = np.reshape(np.asarray(new_types_array), newshape=[new_types_array.shape[0], pokemon_types_dim])
-expanded_fake_X = np.append(X_full_HSV, new_types_array, axis=1)
-"""
+model.save("pokedatamodel32_April_22_1.tflearn")
 
 print("getting samples to show on screen.")
 encode_decode_sample = model.predict(expanded_full_X_HSV)
