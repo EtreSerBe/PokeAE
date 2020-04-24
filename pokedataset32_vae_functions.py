@@ -27,7 +27,7 @@ def get_network():
     NUM_FILTERS_SECOND = 32
     NUM_FILTERS_THIRD = 64
     # Filter sizes
-    FILTER_SIZE_FIRST = 5
+    FILTER_SIZE_FIRST = 5  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
     FILTER_SIZE_SECOND = 5
     FILTER_SIZE_THIRD = 1
     # Strides
@@ -126,7 +126,7 @@ def get_network():
     # network = tflearn.fully_connected(network, 8192, activation='relu')
 
     print("network before the final fully_connected is: " + str(network))
-    network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='relu')
+    network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='leaky_relu')
     return network
 
 
@@ -233,6 +233,22 @@ def print_pokemon_types(types, in_print_all=True):
     if in_print_all:
         print(types_as_strings)  # Print them and exit the function, you could also retrieve them
     return index_and_value
+
+
+def reconstruct_pixels_and_types(in_encode_decode_sample):
+    out_reconstructed_pixels = []
+    out_reconstructed_types = []
+    for i in range(0, len(in_encode_decode_sample)):
+        sample = in_encode_decode_sample[i][0:3072]
+        reshaped_sample = np.reshape(sample, [32, 32, 3])
+        # https://matplotlib.org/api/_as_gen/matplotlib.colors.hsv_to_rgb.html#matplotlib.colors.hsv_to_rgb
+        reshaped_sample = matplotlib.colors.hsv_to_rgb(reshaped_sample)
+        pixel_list = reshaped_sample.flatten()
+        out_reconstructed_pixels.append(pixel_list)
+        reshaped_types = np.reshape(in_encode_decode_sample[i][3072:3108], [2, 18])
+        out_reconstructed_types.append(reshaped_types)
+    return out_reconstructed_pixels, out_reconstructed_types
+
 
 
 def export_as_atlas(in_image_list, in_reconstructed_image_list, image_width=32, image_height=32, num_channels=3,

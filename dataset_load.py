@@ -101,7 +101,12 @@ for filename in filename_list:
 
 if use_augmentation:
     print("total images before augmentation is: " + str(len(image_list)))
-    pixel_data, label_data = utilities.image_augmentation(image_list, one_hot_labels)
+    pixel_data, label_data = utilities.image_augmentation(image_list, one_hot_labels, in_flip_lr=True,
+                                                          in_gamma_contrast=False,
+                                                          in_multiply_saturation=False,
+                                                          in_multiply_brightness=False,
+                                                          in_multiply_hue=False, in_gaussian_blur=False
+                                                          )
     print("data augmentation successful.")
 else:  # If no augmentation will be applied.
     pixel_data = image_list  # Only pass the variables to the correct names.

@@ -81,42 +81,40 @@ network_instance = tflearn.regression(network_instance, optimizer='nesterov',
                                       learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
 
 # proximaladagrad did meh, almost same as others.
-# With adadelta I can't get it to do anything with a small learning rate.
+# With adadelta I can't get it to do anything with a small learning rate. with 0.07 i can get near nesterov.
 # Adagrad gets stuck around- 0.2400 R2.
+# rmsprop not usable?
+# momentum got mostly to the same as Nesterov.
+# sgd gets stuck around -2400 R2 too.
 
 model = tflearn.DNN(network_instance)
 
 print("Preparing model to fit.")
 
 model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=50,
+          n_epoch=100,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=64,
-          validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
-          # validation_set=(expanded_test_X, expanded_test_X),
+          batch_size=16,
+          # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
+          validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
           run_id='encoder_decoder')
 
-model.save("pokedatamodel32_April_22_1.tflearn")
+model.save("pokedatamodel32_April_23_1.tflearn")
 
 print("getting samples to show on screen.")
 encode_decode_sample = model.predict(expanded_full_X_HSV)
-# encode_decode_sample = model.predict(expanded_fake_X)
+# encode_decode_sample = model.predict(expanded_X)  # Just to test training with RGB. It seemed worse.
+
+print("The number of elements in the predicted samples is: " + str(len(encode_decode_sample)))
 
 reconstructed_pixels = []
 reconstructed_types = []
-reshaped_sample = []
+# reshaped_sample = []
 
-for i in range(0, len(encode_decode_sample)):
-    sample = encode_decode_sample[i][0:3072]
-    reshaped_sample = np.reshape(sample, [1024, 3])
-    # https://matplotlib.org/api/_as_gen/matplotlib.colors.hsv_to_rgb.html#matplotlib.colors.hsv_to_rgb
-    reshaped_sample = matplotlib.colors.hsv_to_rgb(reshaped_sample)
-    pixel_list = reshaped_sample.flatten()
-    reconstructed_pixels.append(pixel_list)
-    reshaped_types = np.reshape(encode_decode_sample[i][3072:3108], [2, 18])
-    reconstructed_types.append(reshaped_types)
+# Made a function to avoid repeating that fragment of code in other python files.
+reconstructed_pixels, reconstructed_types = utilities.reconstruct_pixels_and_types(encode_decode_sample)
 
 print("Exporting reconstructed pokemon as an image.")
 utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)  # I have checked that it works perfectly.

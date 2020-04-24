@@ -16,9 +16,6 @@ X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset3
 # We don't need the Ys.
 X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
 
-# Load the hdf5 dataset for the RGB data, to show it in the output.
-X_12_3_RGB, Y_12_3_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_RGB.h5')
-
 X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV_Augmented.h5')
 
 test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV_Augmented.h5',
