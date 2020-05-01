@@ -16,9 +16,9 @@ X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset3
 # We don't need the Ys.
 X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
 
-X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV_Augmented.h5')
+X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5')
 
-test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_12_3_HSV_Augmented.h5',
+test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5',
                                                            in_dataset_x_label='pokedataset32_X_test',
                                                            in_dataset_y_label='pokedataset32_Y_test')
 
@@ -31,11 +31,11 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("Saved models/pokedatamodel32_April_20_1.tflearn")
+model.load("Saved models/pokedatamodel32_April_30_1_adam_relu_3by3_50 epochs_mean_square_64filters_CONT_YOLO.tflearn")
 
 # Add the fake types.
 new_types_array = utilities.generate_all_one_type(len(X_full_HSV),
-                                                  in_type="Fire", in_second_type="None")
+                                                  in_type="Water", in_second_type="None")
 new_types_array = np.reshape(np.asarray(new_types_array), newshape=[new_types_array.shape[0],
                                                                     utilities.pokemon_types_dim])
 expanded_fake_X = np.append(X_full_HSV, new_types_array, axis=1)

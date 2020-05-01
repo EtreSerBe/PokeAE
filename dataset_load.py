@@ -65,12 +65,9 @@ for row in csv_reader_dict:
         type_string = str(row['Type2'])
         second_type = type_to_categorical.index(type_string)
         one_hot_type_2[second_type] = 1  # Set it to one, as it ALSO possesses this type.
-
-    print(current_count)
-    current_count += 1
-    print(one_hot_type)
-    one_hot_labels.append([one_hot_type, one_hot_type_2])
-
+        one_hot_labels.append([one_hot_type, one_hot_type_2])
+    else:
+        one_hot_labels.append([one_hot_type, one_hot_type])  # Add the same type TWICE.
 
 print('Finished one hot encoding')
 print(one_hot_labels)
@@ -101,6 +98,27 @@ for filename in filename_list:
 
 if use_augmentation:
     print("total images before augmentation is: " + str(len(image_list)))
+    if not full_dataset:
+        training_elements = int((len(image_list) / 100) * 85)  # This will give us 15% for testing
+        test_images_list = image_list[training_elements:]  # First assign test ones, to avoid losing info.
+        test_labels_list = one_hot_labels[training_elements:]
+        image_list = image_list[0:training_elements]
+        one_hot_labels = one_hot_labels[0:training_elements]
+
+        print("getting test data augmented.")
+        test_pixel_data, test_label_data = utilities.image_augmentation(test_images_list,
+                                                                        test_labels_list, in_flip_lr=True,
+                                                                        in_gamma_contrast=False,
+                                                                        in_multiply_saturation=False,
+                                                                        in_multiply_brightness=False,
+                                                                        in_multiply_hue=False,
+                                                                        in_gaussian_blur=False
+                                                                        )
+        test_pixel_data = np.asarray(test_pixel_data).astype(dtype=np.float)  # Float64 by default.
+        test_pixel_data = utilities.convert_to_format(test_pixel_data, image_format_to_use)
+
+    print("getting non-test data augmented.")
+    # Now, do the augmentation for the non-test images. If no split was specified, this will contain all images.
     pixel_data, label_data = utilities.image_augmentation(image_list, one_hot_labels, in_flip_lr=True,
                                                           in_gamma_contrast=False,
                                                           in_multiply_saturation=False,
@@ -128,24 +146,11 @@ if full_dataset:
     h5f.create_dataset('pokedataset32_Y', data=label_data)
     h5f.close()
 else:  # If it has train and test separation.
-    # NOTE: Make a better way to automatize this latter. (26/2/2020)
-    training_elements = int((len(pixel_data) / 100) * 85)  # This will give us 15% for testing
-    pixels_train = pixel_data[0:training_elements]  # 85% for training & validation, as TFLearn does the split for us.
-    pixels_test = pixel_data[training_elements:]  # This is the 15% for testing
-
-    labels_train = label_data[0:training_elements]
-    labels_test = label_data[training_elements:]
-
-    print(len(pixels_train))
-    print(len(labels_train))
-    print(len(pixels_test))
-    print(len(labels_test))
-
     h5f = h5py.File('pokedataset32_train_' + image_format_to_use +
                     ('_Augmented' if use_augmentation else '') + '.h5', 'w')
     # These four lines below are for the data split into train and test portions.
-    h5f.create_dataset('pokedataset32_X', data=pixels_train)
-    h5f.create_dataset('pokedataset32_Y', data=labels_train)
-    h5f.create_dataset('pokedataset32_X_test', data=pixels_test)
-    h5f.create_dataset('pokedataset32_Y_test', data=labels_test)
+    h5f.create_dataset('pokedataset32_X', data=pixel_data)
+    h5f.create_dataset('pokedataset32_Y', data=label_data)
+    h5f.create_dataset('pokedataset32_X_test', data=test_pixel_data)
+    h5f.create_dataset('pokedataset32_Y_test', data=test_label_data)
     h5f.close()

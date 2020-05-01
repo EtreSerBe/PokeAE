@@ -1,4 +1,3 @@
-
 import numpy as np
 import math
 from PIL import Image
@@ -20,15 +19,18 @@ image_color_dimension = 3
 original_dim = 3072  # 32 x 32 RGB images.
 pokemon_types_dim = 18 * 2  # 18 *2, since we need space for the two possible types.
 
+glob_z_mean = 0
+glob_z_std = 0
+
 
 def get_network():
     # Number of filters in Autoencoder's order.
-    NUM_FILTERS_FIRST = 32
-    NUM_FILTERS_SECOND = 32
+    NUM_FILTERS_FIRST = 64
+    NUM_FILTERS_SECOND = 64
     NUM_FILTERS_THIRD = 64
     # Filter sizes
-    FILTER_SIZE_FIRST = 5  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
-    FILTER_SIZE_SECOND = 5
+    FILTER_SIZE_FIRST = 3  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
+    FILTER_SIZE_SECOND = 3
     FILTER_SIZE_THIRD = 1
     # Strides
     FILTER_STRIDES_FIRST = 1
@@ -37,14 +39,14 @@ def get_network():
 
     FULLY_CONNECTED_1_UNITS = 256  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
     FULLY_CONNECTED_2_UNITS = 128
-    FULLY_CONNECTED_3_UNITS = 64
+    # FULLY_CONNECTED_3_UNITS = 64
+    embedded_representation_units = FULLY_CONNECTED_2_UNITS
 
     DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
     EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
     EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 
-    # Building the encoder
-    # The size of the input should be 3108 = 3072 + 18*2
+    # Building the encoder # The size of the input should be 3108 = 3072 + 18*2
     # data_augmentation=image_aug, omitted cause TFLearn's augmentation can't work well for our input.
     networkInput = tflearn.input_data(shape=[None, original_dim + pokemon_types_dim])
     # Once the data is in, we need to split the pixel data and the types data.
@@ -59,7 +61,7 @@ def get_network():
     encoderStructure = tflearn.conv_2d(mapShape, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
                                        strides=FILTER_STRIDES_FIRST, activation='relu')
     print("encoderStructure before dropout is: " + str(encoderStructure))
-    encoderStructure = tflearn.dropout(encoderStructure, 0.5)
+    # encoderStructure = tflearn.dropout(encoderStructure, 0.5)  # Re-add it later with a lower value like: 0.85 0.9
     print("encoderStructure before max_pool_2D #1 is: " + str(encoderStructure))
     encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
     print("encoderStructure before conv_2D #2 is: " + str(encoderStructure))
@@ -68,13 +70,6 @@ def get_network():
     print("encoderStructure before max_pool_2D #2 is: " + str(encoderStructure))
     encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
     print("encoderStructure before flatten is: " + str(encoderStructure))
-
-    # Added new conv and pool layers to reduce the size before the Fully connected layers come in.
-    # The size should be 4*4*NUM_FILTERS_THIRD after it. 16*64 = 1024
-    """
-    encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_THIRD, FILTER_SIZE_THIRD,
-                                       strides=FILTER_STRIDES_THIRD, activation='relu')
-    encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)  """
 
     flatStructure = tflearn.flatten(encoderStructure)
     print("flatStructure is = " + str(flatStructure))
@@ -87,28 +82,28 @@ def get_network():
 
     encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
 
-    decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_3_UNITS,
-                                      activation='relu')  # embedded representation? Yes.
+    # embedded representation? Yes.
+    # encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_3_UNITS, activation='relu')
 
-    decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_2_UNITS, activation='relu')
+    global glob_z_mean
+    global glob_z_std
+    glob_z_mean = tflearn.fully_connected(encoder, embedded_representation_units)
+    glob_z_std = tflearn.fully_connected(encoder, embedded_representation_units)
 
-    decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_1_UNITS, activation='relu')
+    # decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
+
+    decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
 
     decoder = tflearn.fully_connected(decoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
 
     decoderStructure = tf.slice(decoder, [0, 0], [-1, EMBEDDED_VECTOR_TOTAL])
     decoderTypes = tf.slice(decoder, [0, EMBEDDED_VECTOR_TOTAL], [-1, -1])
-    print("decoder types size is: " + str(decoderTypes))
+    print("decoder types size is*****: " + str(decoderTypes))
 
     decoderStructure = tf.reshape(decoderStructure, [-1, DECODER_WIDTH, DECODER_WIDTH,
                                                      image_color_dimension])
 
     # Decoder's convolution and up-sampling process.
-    """
-    decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_THIRD, FILTER_SIZE_THIRD,
-                                       strides=FILTER_STRIDES_THIRD, activation='relu')
-    decoderStructure = tflearn.upsample_2d(decoderStructure, 2) """
-
     decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
                                        strides=FILTER_STRIDES_SECOND, activation='relu')
     decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
@@ -121,13 +116,26 @@ def get_network():
 
     network = tf.concat([decoderStructure, decoderTypes], 1)
 
-    # Added this layer since maybe it was going from 32,768 to 3,108 units too fast
-    # NOTE: It did seem to help a little bit, but that's it.
+    # Added this layer since maybe it was going from 32,768 to 3,108 units too fast. results were mixed.
     # network = tflearn.fully_connected(network, 8192, activation='relu')
 
     print("network before the final fully_connected is: " + str(network))
-    network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='leaky_relu')
+    network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='relu')
     return network
+
+
+# Define VAE Loss
+def vae_loss(y_pred, y_true):
+    # https: // github.com / tflearn / tflearn / issues / 72
+    global glob_z_mean
+    global glob_z_std
+    # Reconstruction loss
+    encode_decode_loss = y_true * tf.math.log(1e-10 + y_pred) + (1 - y_true) * tf.math.log(1e-10 + 1 - y_pred)
+    encode_decode_loss = -tf.reduce_sum(encode_decode_loss, 1)
+    # KL Divergence loss
+    kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
+    kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
+    return tf.reduce_mean(encode_decode_loss + kl_div_loss)
 
 
 def prepare_dataset_for_input_layer(in_h5f_dataset_name, in_dataset_x_label="pokedataset32_X",
@@ -183,7 +191,7 @@ def image_augmentation(in_image_list, in_types_list, in_flip_lr=True, in_gamma_c
         out_all_images.extend(images_aug)
 
     print("The size of Out_all_images is: " + str(len(out_all_images)))
-    for i in range(0, int(len(out_all_images)/len(in_types_list))-1):
+    for i in range(0, int(len(out_all_images) / len(in_types_list)) - 1):
         out_all_types.extend(in_types_list)
 
     print("The size of Out_all_types is: " + str(len(out_all_types)))
@@ -250,7 +258,6 @@ def reconstruct_pixels_and_types(in_encode_decode_sample):
     return out_reconstructed_pixels, out_reconstructed_types
 
 
-
 def export_as_atlas(in_image_list, in_reconstructed_image_list, image_width=32, image_height=32, num_channels=3,
                     name_annotations='standard'):
     num_elements = len(in_image_list)
@@ -262,7 +269,7 @@ def export_as_atlas(in_image_list, in_reconstructed_image_list, image_width=32, 
     row_counter = 0
     column_counter = 0
     # Make it big enough to put the original above the reconstructed. (That's why multiplied by 2)
-    atlas_image = Image.new('RGB', (image_width*rows, image_height*rows*2), (0, 0, 0))
+    atlas_image = Image.new('RGB', (image_width * rows, image_height * rows * 2), (0, 0, 0))
 
     for original, reconstructed in zip(in_image_list, in_reconstructed_image_list):
         """if column_counter + (row_counter*rows) >= num_elements:
@@ -275,9 +282,9 @@ def export_as_atlas(in_image_list, in_reconstructed_image_list, image_width=32, 
         reshaped_reconstructed = np.reshape(
             np.uint8(np.multiply(reconstructed.flatten(), 255.)),
             [image_width, image_height, num_channels])
-        #reshaped_reconstructed = np.asarray(reshaped_reconstructed)
+        # reshaped_reconstructed = np.asarray(reshaped_reconstructed)
 
-        offset = (column_counter*image_width, row_counter*image_height*2)
+        offset = (column_counter * image_width, row_counter * image_height * 2)
         im_original = Image.fromarray(reshaped_image, 'RGB')
         atlas_image.paste(im_original, offset)
 
@@ -308,8 +315,8 @@ def export_types_csv(in_original_types, in_predicted_types):
         orig_index_and_values = print_pokemon_types(original, False)
         pred_index_and_values = print_pokemon_types(predicted, False)
 
-        #sorted_orig = sorted(orig_index_and_values.items(), key=operator.itemgetter(1))  # This is unnecessary
-        #sorted_pred = sorted(pred_index_and_values.items(), key=operator.itemgetter(1))
+        # sorted_orig = sorted(orig_index_and_values.items(), key=operator.itemgetter(1))  # This is unnecessary
+        # sorted_pred = sorted(pred_index_and_values.items(), key=operator.itemgetter(1))
 
         no_errors = True
         for i in orig_index_and_values:
