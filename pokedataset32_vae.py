@@ -41,9 +41,6 @@ X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset3
 # We don't need the Ys.
 X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
 
-# Load the hdf5 dataset for the RGB data, to show it in the output.
-X_12_3_RGB, Y_12_3_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_train_RGB.h5')
-
 X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5')
 
 test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5',
@@ -76,11 +73,11 @@ print("expanded Xs and Ys ready")
 network_instance = utilities.get_network()
 
 network_instance = tflearn.regression(network_instance,
-                                      optimizer='adam',
-                                      # optimizer='adagrad',
+                                      # optimizer='adam',
+                                      optimizer='rmsprop',
                                       metric='R2',
-                                      loss='mean_square',
-                                      # loss=utilities.vae_loss,
+                                      # loss='mean_square',
+                                      loss=utilities.vae_loss,
                                       learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
 
 # proximaladagrad did meh, almost same as others.
@@ -99,12 +96,12 @@ model.fit(expanded_X, Y_targets=expanded_X,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=32,
+          batch_size=64,
           # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
           validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
           run_id='encoder_decoder')
 
-model.save("pokedatamodel32_April_30_1_adam.tflearn")
+model.save("pokedatamodel32_May_3_1_rmsprop_vae_loss_sigmoid.tflearn")
 
 print("getting samples to show on screen.")
 encode_decode_sample = model.predict(expanded_full_X_HSV)

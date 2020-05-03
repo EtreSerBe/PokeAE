@@ -11,7 +11,7 @@ import PokeAE.pokedataset32_vae_functions as utilities
 from PIL import Image
 from imgaug import augmenters as iaa
 
-
+# full RGB; full HSV, and train HSV augmented are the indispensable ones.
 # Important parameters for the data set creation. Modifying them will change the final set generated.
 image_format_to_use = "HSV"
 full_dataset = False
@@ -114,7 +114,7 @@ if use_augmentation:
                                                                         in_multiply_hue=False,
                                                                         in_gaussian_blur=False
                                                                         )
-        test_pixel_data = np.asarray(test_pixel_data).astype(dtype=np.float)  # Float64 by default.
+        test_pixel_data = np.asarray(test_pixel_data).astype(dtype=np.dtype('Float32'))  # Float64 by default.
         test_pixel_data = utilities.convert_to_format(test_pixel_data, image_format_to_use)
 
     print("getting non-test data augmented.")
@@ -130,7 +130,7 @@ else:  # If no augmentation will be applied.
     pixel_data = image_list  # Only pass the variables to the correct names.
     label_data = one_hot_labels
 
-pixel_data = np.asarray(pixel_data).astype(dtype=np.float)  # Float64 by default.
+pixel_data = np.asarray(pixel_data).astype(dtype=np.dtype('Float32'))  # Float64 by default.
 
 # Now, we need to put them in the correct format according to the desired set.
 pixel_data = utilities.convert_to_format(pixel_data, image_format_to_use)

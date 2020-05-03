@@ -25,8 +25,8 @@ glob_z_std = 0
 
 def get_network():
     # Number of filters in Autoencoder's order.
-    NUM_FILTERS_FIRST = 64
-    NUM_FILTERS_SECOND = 64
+    NUM_FILTERS_FIRST = 32
+    NUM_FILTERS_SECOND = 32
     NUM_FILTERS_THIRD = 64
     # Filter sizes
     FILTER_SIZE_FIRST = 3  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
@@ -40,7 +40,7 @@ def get_network():
     FULLY_CONNECTED_1_UNITS = 256  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
     FULLY_CONNECTED_2_UNITS = 128
     # FULLY_CONNECTED_3_UNITS = 64
-    embedded_representation_units = FULLY_CONNECTED_2_UNITS
+    latent_dimension = 2
 
     DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
     EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
@@ -87,12 +87,17 @@ def get_network():
 
     global glob_z_mean
     global glob_z_std
-    glob_z_mean = tflearn.fully_connected(encoder, embedded_representation_units)
-    glob_z_std = tflearn.fully_connected(encoder, embedded_representation_units)
+    glob_z_mean = tflearn.fully_connected(encoder, latent_dimension)
+    glob_z_std = tflearn.fully_connected(encoder, latent_dimension)
 
-    # decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
+    # Sampler: Normal (gaussian) random distribution
+    eps = tf.random_normal(tf.shape(glob_z_std), dtype=tf.float32, mean=0., stddev=1.0,
+                           name='epsilon')
+    z = glob_z_mean + tf.exp(glob_z_std / 2) * eps
 
-    decoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
+    decoder = tflearn.fully_connected(z, FULLY_CONNECTED_2_UNITS, activation='relu')
+
+    decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_1_UNITS, activation='relu')
 
     decoder = tflearn.fully_connected(decoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
 
@@ -120,17 +125,19 @@ def get_network():
     # network = tflearn.fully_connected(network, 8192, activation='relu')
 
     print("network before the final fully_connected is: " + str(network))
-    network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='relu')
+    network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation='sigmoid')
     return network
 
 
 # Define VAE Loss
 def vae_loss(y_pred, y_true):
-    # https: // github.com / tflearn / tflearn / issues / 72
+    # https://github.com/tflearn/tflearn/issues/72
     global glob_z_mean
     global glob_z_std
     # Reconstruction loss
-    encode_decode_loss = y_true * tf.math.log(1e-10 + y_pred) + (1 - y_true) * tf.math.log(1e-10 + 1 - y_pred)
+    encode_decode_loss = y_true * tf.math.log(1e-10 + y_pred) \
+                         + (1 - y_true) * tf.math.log(1e-10 + 1 - y_pred)
+
     encode_decode_loss = -tf.reduce_sum(encode_decode_loss, 1)
     # KL Divergence loss
     kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
@@ -332,9 +339,9 @@ def export_types_csv(in_original_types, in_predicted_types):
 
         if no_errors:
             num_correct += 1
-            print('pokemon with both correct types was: ')
-            print(orig_index_and_values)
-            print(pred_index_and_values)
+            # print('pokemon with both correct types was: ')
+            # print(orig_index_and_values)
+            # print(pred_index_and_values)
             correct_indices.append(current_iteration)
 
         current_iteration += 1
@@ -352,9 +359,11 @@ def generate_all_one_type(in_num_elements, in_type="Fire", in_second_type="None"
         if type_to_categorical.count(in_type) > 0:  # This one is just for safety, should be valid, but one never knows
             index = type_to_categorical.index(in_type)
             elem[0][index] = 1  # Set to true the type specified in in_type
-        if type_to_categorical.count(in_second_type) > 0:  # This one could be split into 2 different for cycles
-            # To speed up the process when only one type is desired.
-            index = type_to_categorical.index(in_second_type)
-            elem[1][index] = 1  # Set to true the type specified in in_type
+            if type_to_categorical.count(in_second_type) > 0:  # This one could be split into 2 different for cycles
+                # To speed up the process when only one type is desired.
+                index = type_to_categorical.index(in_second_type)
+                elem[1][index] = 1  # Set to true the type specified in in_type
+            else:
+                elem[1][index] = 1  # If only one type, repeat it in the second one. P.E: Pikachu is electric electric.
 
     return new_types

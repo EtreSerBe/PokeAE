@@ -29,11 +29,14 @@ expanded_full_X_HSV = np.append(X_full_HSV, Y_full_HSV, axis=1)  # Used to print
 print("getting network to load model*******************")
 network_instance = utilities.get_network()
 
-network_instance = tflearn.regression(network_instance, optimizer='adam',
+network_instance = tflearn.regression(network_instance,
+                                      # optimizer='adam',
+                                      optimizer='rmsprop',
                                       metric='R2',
-                                      loss='mean_square',
-                                      # loss=utilities.vae_loss,
+                                      # loss='mean_square',
+                                      loss=utilities.vae_loss,
                                       learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
+
 
 model = tflearn.DNN(network_instance)
 
@@ -41,19 +44,19 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("Saved models/pokedatamodel32_April_30_1_adam_relu_3by3_50 epochs_mean_square_64filters_CONT.tflearn")
+model.load("Saved models/pokedatamodel32_May_3_1_rmsprop_vae_loss_sigmoid_V5.tflearn")
 
 reconstructed_pixels = []
 reconstructed_types = []
 
-for lap in range(0, 5):
+for lap in range(0, 10):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=1,
+              n_epoch=10,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=4,
+              batch_size=64,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.
@@ -97,6 +100,7 @@ for lap in range(0, 5):
     utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
 
 
-
+print('waiting for button press to save the model')
+plt.waitforbuttonpress()
 print("Now overwriting the model")
-model.save("Saved models/pokedatamodel32_April_30_1_adam_relu_3by3_50 epochs_mean_square_64filters_CONT_YOLO.tflearn")
+model.save("Saved models/pokedatamodel32_May_3_1_rmsprop_vae_loss_sigmoid_V5.tflearn")

@@ -31,11 +31,13 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("Saved models/pokedatamodel32_April_30_1_adam_relu_3by3_50 epochs_mean_square_64filters_CONT_YOLO.tflearn")
+model.load("Saved models/pokedatamodel32_May_3_1_rmsprop_vae_loss_sigmoid_V5.tflearn")
 
 # Add the fake types.
+poke_type_1 = 'Water'
+poke_type_2 = 'Water'
 new_types_array = utilities.generate_all_one_type(len(X_full_HSV),
-                                                  in_type="Water", in_second_type="None")
+                                                  in_type=poke_type_1, in_second_type=poke_type_2)
 new_types_array = np.reshape(np.asarray(new_types_array), newshape=[new_types_array.shape[0],
                                                                     utilities.pokemon_types_dim])
 expanded_fake_X = np.append(X_full_HSV, new_types_array, axis=1)
@@ -58,7 +60,7 @@ for i in range(0, len(encode_decode_sample)):
     reconstructed_types.append(reshaped_types)
 
 print("Exporting reconstructed pokemon as an image.")
-utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)
+utilities.export_as_atlas(X_full_RGB, reconstructed_pixels, name_annotations='TYPES_' + poke_type_1 + '_' + poke_type_2)
 # correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
 correct_indices = utilities.export_types_csv(new_types_array, reconstructed_types)
 
