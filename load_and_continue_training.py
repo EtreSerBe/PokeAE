@@ -30,12 +30,12 @@ print("getting network to load model*******************")
 network_instance = utilities.get_network()
 
 network_instance = tflearn.regression(network_instance,
-                                      # optimizer='adam',
-                                      optimizer='rmsprop',
+                                      optimizer='adam',
+                                      # optimizer='rmsprop',
                                       metric='R2',
                                       # loss='mean_square',
                                       loss=utilities.vae_loss,
-                                      learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.01)  # adagrad? #adadelta #nesterov did good,
 
 
 model = tflearn.DNN(network_instance)
@@ -44,19 +44,19 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("Saved models/pokedatamodel32_May_3_1_rmsprop_vae_loss_sigmoid_V5.tflearn")
+model.load("Saved models/pokedatamodel32_May_6_1_adam_vae_loss_sigmoid_latent512_FC_804_650_GALAR_V2.tflearn")
 
 reconstructed_pixels = []
 reconstructed_types = []
 
-for lap in range(0, 10):
+for lap in range(0, 5):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=10,
+              n_epoch=1,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=64,
+              batch_size=128,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.
@@ -75,20 +75,20 @@ for lap in range(0, 10):
     f, a = plt.subplots(2, 20, figsize=(20, 2), squeeze=False)  # figsize=(50, 2),
     for i in range(20):
         # reshaped_pokemon = np.multiply(reshaped_pokemon, 255.0)
-        reshaped_pokemon = np.reshape(np.asarray(X_full_RGB[i]), [1024, 3])
+        reshaped_pokemon = np.reshape(np.asarray(X_full_RGB[-(i+1)]), [1024, 3])
         reshaped_pokemon = np.asarray(reshaped_pokemon).flatten()
         temp = [[ii] for ii in list(reshaped_pokemon)]  # WTH? Python, you're drunk haha.
         print("ORIGINAL Types for Pokemon " + str(i) + " are: ")
-        utilities.print_pokemon_types(Y[i])
+        utilities.print_pokemon_types(Y_full_RGB[-(i+1)])
         a[0][i].imshow(np.reshape(temp, (32, 32, 3)))
-        temp = [[ii] for ii in list(reconstructed_pixels[i])]
+        temp = [[ii] for ii in list(reconstructed_pixels[-(i+1)])]
         a[1][i].imshow(np.reshape(temp, (32, 32, 3)))
         print("Types for Pokemon " + str(i) + " are: ")
-        utilities.print_pokemon_types(reconstructed_types[i])
+        utilities.print_pokemon_types(reconstructed_types[-(i+1)])
     f.show()
     plt.draw()
     # input('Press E to exit')
-    # plt.waitforbuttonpress()
+    plt.waitforbuttonpress()
 
     print("Exporting reconstructed pokemon as an image.")
     utilities.export_as_atlas(X_full_RGB, reconstructed_pixels, name_annotations='standard_retrain_' + str(lap))
@@ -103,4 +103,4 @@ for lap in range(0, 10):
 print('waiting for button press to save the model')
 plt.waitforbuttonpress()
 print("Now overwriting the model")
-model.save("Saved models/pokedatamodel32_May_3_1_rmsprop_vae_loss_sigmoid_V5.tflearn")
+model.save("Saved models/pokedatamodel32_May_6_1_adam_vae_loss_sigmoid_latent512_FC_804_650_GALAR_V2.tflearn")

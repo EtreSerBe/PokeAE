@@ -25,8 +25,8 @@ glob_z_std = 0
 
 def get_network():
     # Number of filters in Autoencoder's order.
-    NUM_FILTERS_FIRST = 32
-    NUM_FILTERS_SECOND = 32
+    NUM_FILTERS_FIRST = 16
+    NUM_FILTERS_SECOND = 16
     NUM_FILTERS_THIRD = 64
     # Filter sizes
     FILTER_SIZE_FIRST = 3  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
@@ -37,12 +37,12 @@ def get_network():
     FILTER_STRIDES_SECOND = 1
     FILTER_STRIDES_THIRD = 1
 
-    FULLY_CONNECTED_1_UNITS = 256  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
-    FULLY_CONNECTED_2_UNITS = 128
-    # FULLY_CONNECTED_3_UNITS = 64
-    latent_dimension = 2
+    FULLY_CONNECTED_1_UNITS = 804  # 468 was great # 228  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
+    FULLY_CONNECTED_2_UNITS = 650
+    # FULLY_CONNECTED_3_UNITS = 164
+    latent_dimension = 512
 
-    DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
+    DECODER_WIDTH = 16  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
     EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
     EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 
@@ -95,11 +95,14 @@ def get_network():
                            name='epsilon')
     z = glob_z_mean + tf.exp(glob_z_std / 2) * eps
 
+    # decoder = tflearn.fully_connected(z, FULLY_CONNECTED_3_UNITS, activation='relu')
+
     decoder = tflearn.fully_connected(z, FULLY_CONNECTED_2_UNITS, activation='relu')
 
+    # I made the fully_connected 1 equal to int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim).
     decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_1_UNITS, activation='relu')
 
-    decoder = tflearn.fully_connected(decoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
+    # decoder = tflearn.fully_connected(decoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
 
     decoderStructure = tf.slice(decoder, [0, 0], [-1, EMBEDDED_VECTOR_TOTAL])
     decoderTypes = tf.slice(decoder, [0, EMBEDDED_VECTOR_TOTAL], [-1, -1])
@@ -116,6 +119,9 @@ def get_network():
     decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
                                        strides=FILTER_STRIDES_FIRST, activation='relu')
     decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+
+    # This did not work out. Maybe in another place?
+    # decoderStructure = tflearn.dropout(decoderStructure, 0.60)  # testing this now.
 
     decoderStructure = tflearn.flatten(decoderStructure)  # With 64 filters, it has 3108*64 = 198,912 connections...
 
@@ -135,10 +141,38 @@ def vae_loss(y_pred, y_true):
     global glob_z_mean
     global glob_z_std
     # Reconstruction loss
+    # But this is cross entropy, right? We can't use it right now
     encode_decode_loss = y_true * tf.math.log(1e-10 + y_pred) \
                          + (1 - y_true) * tf.math.log(1e-10 + 1 - y_pred)
 
     encode_decode_loss = -tf.reduce_sum(encode_decode_loss, 1)
+    # KL Divergence loss
+    kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
+    kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
+    return tf.reduce_mean(encode_decode_loss + kl_div_loss)
+
+
+# Define VAE Loss
+def vae_loss_mean_square(y_pred, y_true):
+    # https://github.com/tflearn/tflearn/issues/72
+    global glob_z_mean
+    global glob_z_std
+    # Reconstruction loss
+    # But this is cross entropy, right? We can't use it right now
+    encode_decode_loss = tf.reduce_sum(tf.square(y_pred - y_true))
+    # KL Divergence loss
+    kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
+    kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
+    return tf.reduce_mean(encode_decode_loss + kl_div_loss)
+
+
+def vae_loss_abs_error(y_pred, y_true):
+    # https://github.com/tflearn/tflearn/issues/72
+    global glob_z_mean
+    global glob_z_std
+    # Reconstruction loss
+    # But this is cross entropy, right? We can't use it right now
+    encode_decode_loss = tf.reduce_sum(y_pred - y_true)
     # KL Divergence loss
     kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
     kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
@@ -347,7 +381,8 @@ def export_types_csv(in_original_types, in_predicted_types):
         current_iteration += 1
 
     num_errors = num_not_present + num_extra_types
-    print('The total number of errors was: ' + str(num_errors))
+    print('The total number of errors was: ' + str(num_errors) + ' from which ExtraTypes were: --- ' +
+          str(num_extra_types) + ' and Missing original types were: --- ' + str(num_not_present))
     print('Total number of elements with NO error in them: ' + str(num_correct))
     return correct_indices
 

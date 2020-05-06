@@ -13,9 +13,9 @@ from imgaug import augmenters as iaa
 
 # full RGB; full HSV, and train HSV augmented are the indispensable ones.
 # Important parameters for the data set creation. Modifying them will change the final set generated.
-image_format_to_use = "HSV"
-full_dataset = False
-use_augmentation = True
+image_format_to_use = "RGB"
+full_dataset = True
+use_augmentation = False
 
 
 # As seen in https://stackoverflow.com/questions/4601373/better-way-to-shuffle-two-numpy-arrays-in-unison
@@ -38,7 +38,7 @@ def sortKeyFunction(s):
 
 # Load CSV file, indicate that the first column represents labels
 # Now, we can check for the
-my_file = open('pokemontypes.csv')
+my_file = open('pokemontypes_2020.csv')
 csv_reader_dict = csv.DictReader(my_file)
 # csv_reader_object = csv.reader(my_file)
 

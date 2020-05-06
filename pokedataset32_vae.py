@@ -73,10 +73,11 @@ print("expanded Xs and Ys ready")
 network_instance = utilities.get_network()
 
 network_instance = tflearn.regression(network_instance,
-                                      # optimizer='adam',
-                                      optimizer='rmsprop',
+                                      # optimizer='rmsprop',
+                                      optimizer='adam',
                                       metric='R2',
                                       # loss='mean_square',
+                                      # loss=utilities.vae_loss,
                                       loss=utilities.vae_loss,
                                       learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
 
@@ -92,7 +93,7 @@ model = tflearn.DNN(network_instance)
 print("Preparing model to fit.")
 
 model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=50,
+          n_epoch=100,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
@@ -101,7 +102,7 @@ model.fit(expanded_X, Y_targets=expanded_X,
           validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
           run_id='encoder_decoder')
 
-model.save("pokedatamodel32_May_3_1_rmsprop_vae_loss_sigmoid.tflearn")
+model.save("pokedatamodel32_May_6_1_adam_vae_loss_sigmoid_latent512_FC_804_650.tflearn")
 
 print("getting samples to show on screen.")
 encode_decode_sample = model.predict(expanded_full_X_HSV)
