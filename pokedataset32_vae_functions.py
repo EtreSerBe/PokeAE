@@ -25,8 +25,8 @@ glob_z_std = 0
 
 def get_network():
     # Number of filters in Autoencoder's order.
-    NUM_FILTERS_FIRST = 16
-    NUM_FILTERS_SECOND = 16
+    NUM_FILTERS_FIRST = 32
+    NUM_FILTERS_SECOND = 32
     NUM_FILTERS_THIRD = 64
     # Filter sizes
     FILTER_SIZE_FIRST = 3  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
@@ -37,12 +37,12 @@ def get_network():
     FILTER_STRIDES_SECOND = 1
     FILTER_STRIDES_THIRD = 1
 
-    FULLY_CONNECTED_1_UNITS = 804  # 468 was great # 228  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
-    FULLY_CONNECTED_2_UNITS = 650
+    FULLY_CONNECTED_1_UNITS = 228  # 468 was great # 228  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
+    FULLY_CONNECTED_2_UNITS = 128
     # FULLY_CONNECTED_3_UNITS = 164
-    latent_dimension = 512
+    latent_dimension = 48
 
-    DECODER_WIDTH = 16  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
+    DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
     EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
     EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 
@@ -172,7 +172,7 @@ def vae_loss_abs_error(y_pred, y_true):
     global glob_z_std
     # Reconstruction loss
     # But this is cross entropy, right? We can't use it right now
-    encode_decode_loss = tf.reduce_sum(y_pred - y_true)
+    encode_decode_loss = tf.reduce_sum(tf.abs(y_pred - y_true), 1)
     # KL Divergence loss
     kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
     kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
@@ -300,7 +300,7 @@ def reconstruct_pixels_and_types(in_encode_decode_sample):
 
 
 def export_as_atlas(in_image_list, in_reconstructed_image_list, image_width=32, image_height=32, num_channels=3,
-                    name_annotations='standard'):
+                    name_annotations='standard', name_prefix=''):
     num_elements = len(in_image_list)
     if num_elements == 0:
         return
@@ -339,9 +339,10 @@ def export_as_atlas(in_image_list, in_reconstructed_image_list, image_width=32, 
             row_counter += 1
 
     now = datetime.now()
-    current_time = now.strftime("%Y-%m-%d %H-%M-%S")
+    current_time = now.strftime("%Y-%m-%d %H-%M")
     print('saving output atlas image in the ImageOutputs folder.')
-    atlas_image.save('ImageOutputs/Output image_' + name_annotations + '_' + str(current_time) + '.png')
+    atlas_image.save('ImageOutputs/' + name_prefix + 'Image_'
+                     + name_annotations + '_' + str(current_time) + '.png')
 
 
 def export_types_csv(in_original_types, in_predicted_types):

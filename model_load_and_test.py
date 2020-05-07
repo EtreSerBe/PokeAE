@@ -39,7 +39,7 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("Saved models/pokedatamodel32_May_6_1_adam_vae_loss_sigmoid_latent512_FC_804_650.tflearn")
+model.load("Saved models/pokedatamodel32_May_7_1_adam_vae_loss_sigmoid_latent48_FC_228_128_V2.tflearn")
 
 # Add the fake types.
 poke_type_1 = 'Fire'
@@ -68,14 +68,16 @@ for i in range(0, len(encode_decode_sample)):
     reconstructed_types.append(reshaped_types)
 
 print("Exporting reconstructed pokemon as an image.")
-utilities.export_as_atlas(X_full_RGB, reconstructed_pixels, name_annotations='TYPES_' + poke_type_1 + '_' + poke_type_2)
+utilities.export_as_atlas(X_full_RGB, reconstructed_pixels,
+                          name_prefix='_FORCED_TYPES_' + poke_type_1 + '_' + poke_type_2)
 # correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
 correct_indices = utilities.export_types_csv(new_types_array, reconstructed_types)
 
 # This is used to export an image only containing the ones whose types were correctly predicted by the NN.
 correct_X_RGB = [X_full_RGB[i] for i in correct_indices]
 correct_reconstructed_pixels = [reconstructed_pixels[i] for i in correct_indices]
-utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
+utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels,
+                          name_prefix='FORCED_TYPES_' + poke_type_1 + '_' + poke_type_2, name_annotations='correct')
 
 """
 # I used this before to show the results, but now I have the whole image being saved.

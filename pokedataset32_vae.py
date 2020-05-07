@@ -77,9 +77,9 @@ network_instance = tflearn.regression(network_instance,
                                       optimizer='adam',
                                       metric='R2',
                                       # loss='mean_square',
-                                      # loss=utilities.vae_loss,
                                       loss=utilities.vae_loss,
-                                      learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
+                                      # loss=utilities.vae_loss_abs_error,
+                                      learning_rate=0.0001)  # adagrad? #adadelta #nesterov did good,
 
 # proximaladagrad did meh, almost same as others.
 # With adadelta I can't get it to do anything with a small learning rate. with 0.07 i can get near nesterov.
@@ -97,12 +97,12 @@ model.fit(expanded_X, Y_targets=expanded_X,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=64,
+          batch_size=32,
           # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
           validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
           run_id='encoder_decoder')
 
-model.save("pokedatamodel32_May_6_1_adam_vae_loss_sigmoid_latent512_FC_804_650.tflearn")
+model_name = "pokedatamodel32_May_7_1_adam_vae_loss_sigmoid_latent48_FC_228_128.tflearn"
 
 print("getting samples to show on screen.")
 encode_decode_sample = model.predict(expanded_full_X_HSV)
@@ -127,7 +127,7 @@ correct_X_RGB = [X_full_RGB[i] for i in correct_indices]
 correct_reconstructed_pixels = [reconstructed_pixels[i] for i in correct_indices]
 utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
 
-"""
+
 # I used this before to show the results, but now I have the whole image being saved.
 print("PREPARING TO SHOW IMAGE")
 # Compare original images with their reconstructions.
@@ -139,13 +139,14 @@ for i in range(20):
     RGBOriginal = np.asarray(RGBOriginal).flatten()
     temp = [[ii] for ii in list(RGBOriginal)]  # WTH? Python, you're drunk haha.
     print("ORIGINAL Types for Pokemon " + str(i) + " are: ")
-    pokedataset32_vae_functions.print_pokemon_types(Y[i])
+    utilities.print_pokemon_types(Y_full_RGB[i])
     a[0][i].imshow(np.reshape(temp, (32, 32, 3)))
     temp = [[ii] for ii in list(reconstructed_pixels[i])]
     a[1][i].imshow(np.reshape(temp, (32, 32, 3)))
     print("Types for Pokemon " + str(i) + " are: ")
-    pokedataset32_vae_functions.print_pokemon_types(reconstructed_types[i])
+    utilities.print_pokemon_types(reconstructed_types[i])
 f.show()
 plt.draw()
 plt.waitforbuttonpress()
-"""
+
+model.save(model_name)

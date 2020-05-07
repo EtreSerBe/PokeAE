@@ -16,6 +16,15 @@ from imgaug import augmenters as iaa
 image_format_to_use = "RGB"
 full_dataset = True
 use_augmentation = False
+use_type_swap = True
+
+# This is only used for the Pokemon images with swapped types, which are a special dataset for testing.
+if not use_type_swap:
+    source_folder = 'poke3232dataset/'
+    csv_type_file = 'pokemontypes_2020.csv'
+else:
+    source_folder = 'poke3232dataset_type_swapped/'
+    csv_type_file = 'pokemontypes_2020_type_swapped.csv'
 
 
 # As seen in https://stackoverflow.com/questions/4601373/better-way-to-shuffle-two-numpy-arrays-in-unison
@@ -38,7 +47,7 @@ def sortKeyFunction(s):
 
 # Load CSV file, indicate that the first column represents labels
 # Now, we can check for the
-my_file = open('pokemontypes_2020.csv')
+my_file = open(csv_type_file)
 csv_reader_dict = csv.DictReader(my_file)
 # csv_reader_object = csv.reader(my_file)
 
@@ -75,9 +84,6 @@ one_hot_labels = np.asarray(one_hot_labels)
 
 # Now, one_hot_labels has all the one_hot encodings for all the elements.
 # We just have to put it into the same file as the pixel data and that's it.
-
-source_folder = 'poke3232dataset/'
-
 pixel_data = []
 image_list = []
 
@@ -140,14 +146,16 @@ pixel_data = utilities.convert_to_format(pixel_data, image_format_to_use)
 # Finally, put it into a h5f dataset and that's it.
 if full_dataset:
     h5f = h5py.File('pokedataset32_full_' + image_format_to_use +
-                    ('_Augmented' if use_augmentation else '') + '.h5', 'w')
+                    ('_Augmented' if use_augmentation else '') +
+                    ('_Type_Swapped' if use_type_swap else '') + '.h5', 'w')
     # These two lines below are used when the full data set is to be in one file.
     h5f.create_dataset('pokedataset32_X', data=pixel_data)
     h5f.create_dataset('pokedataset32_Y', data=label_data)
     h5f.close()
 else:  # If it has train and test separation.
     h5f = h5py.File('pokedataset32_train_' + image_format_to_use +
-                    ('_Augmented' if use_augmentation else '') + '.h5', 'w')
+                    ('_Augmented' if use_augmentation else '') +
+                    ('_Type_Swapped' if use_type_swap else '') + '.h5', 'w')
     # These four lines below are for the data split into train and test portions.
     h5f.create_dataset('pokedataset32_X', data=pixel_data)
     h5f.create_dataset('pokedataset32_Y', data=label_data)
