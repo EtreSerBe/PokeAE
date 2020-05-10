@@ -7,15 +7,13 @@ import matplotlib.colors
 import PokeAE.pokedataset32_vae_functions as utilities
 import matplotlib.pyplot as plt
 
-# We don't need the Ys.
-X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV.h5')
+X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV_Two_Hot_Encoded.h5')
 
-# We don't need the Ys.
-X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
+X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB_Two_Hot_Encoded.h5')
 
-X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5')
+X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Two_Hot_Encoded_Augmented.h5')
 
-test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5',
+test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Two_Hot_Encoded_Augmented.h5',
                                                            in_dataset_x_label='pokedataset32_X_test',
                                                            in_dataset_y_label='pokedataset32_Y_test')
 
@@ -31,34 +29,42 @@ expanded_full_X_HSV = np.append(X_full_HSV, Y_full_HSV, axis=1)  # Used to print
 print("getting network to load model*******************")
 network_instance = utilities.get_network()
 
+optimizer_name = 'adam'
+loss_name = 'vae_loss'
+loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_V2')
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_V2')
+save_images = False
+
+
 network_instance = tflearn.regression(network_instance,
-                                      optimizer='adam',
+                                      optimizer=optimizer_name,
                                       # optimizer='rmsprop',
                                       metric='R2',
                                       loss=utilities.vae_loss,
                                       # loss=utilities.vae_loss_abs_error,
-                                      learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.00001)  # adagrad? #adadelta #nesterov did good,
 
 
 model = tflearn.DNN(network_instance)
 
 print("LOADING MODEL.")
 
-# This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("Saved models/pokedatamodel32_May_7_1_adam_vae_loss_sigmoid_latent48_FC_228_128_V2.tflearn")
+model.load("Saved models/" + loaded_model_name)
+# Variable so you don't have to go all the way down just to change that
+model_save_name = "Saved models/" + final_model_name
 
 reconstructed_pixels = []
 reconstructed_types = []
 
-for lap in range(0, 1):
+for lap in range(0, 5):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
               n_epoch=1,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=64,
+              batch_size=256,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.
@@ -73,14 +79,15 @@ for lap in range(0, 1):
 
     reconstructed_pixels, reconstructed_types = utilities.reconstruct_pixels_and_types(encode_decode_sample)
 
-    print("Exporting reconstructed pokemon as an image.")
-    utilities.export_as_atlas(X_full_RGB, reconstructed_pixels, name_annotations='standard_retrain_' + str(lap))
-    correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
+    if save_images:
+        print("Exporting reconstructed pokemon as an image.")
+        utilities.export_as_atlas(X_full_RGB, reconstructed_pixels, name_annotations='standard_retrain_' + str(lap))
+        correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
 
-    # This is used to export an image only containing the ones whose types were correctly predicted by the NN.
-    correct_X_RGB = [X_full_RGB[i] for i in correct_indices]
-    correct_reconstructed_pixels = [reconstructed_pixels[i] for i in correct_indices]
-    utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
+        # This is used to export an image only containing the ones whose types were correctly predicted by the NN.
+        correct_X_RGB = [X_full_RGB[i] for i in correct_indices]
+        correct_reconstructed_pixels = [reconstructed_pixels[i] for i in correct_indices]
+        utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
 
     # Compare original images with their reconstructions.
     f, a = plt.subplots(2, 20, figsize=(20, 2), squeeze=False)  # figsize=(50, 2),
@@ -105,4 +112,4 @@ for lap in range(0, 1):
 print('waiting for button press to save the model')
 plt.waitforbuttonpress()
 print("Now overwriting the model")
-model.save("Saved models/pokedatamodel32_May_7_1_adam_vae_loss_sigmoid_latent48_FC_228_128_V2.tflearn")
+model.save(model_save_name)

@@ -8,10 +8,10 @@ import matplotlib.colors
 import PokeAE.pokedataset32_vae_functions as utilities
 
 X_full_HSV_Type_Swapped, Y_full_HSV_Type_Swapped = \
-    utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV_Type_Swapped.h5')
+    utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV_Two_Hot_Encoded_Type_Swapped.h5')
 
 X_full_RGB_Type_Swapped, Y_full_RGB_Type_Swapped = \
-    utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB_Type_Swapped.h5')
+    utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB_Two_Hot_Encoded_Type_Swapped.h5')
 
 Y_full_HSV_Type_Swapped = np.reshape(np.asarray(Y_full_HSV_Type_Swapped),
                                      newshape=[Y_full_HSV_Type_Swapped.shape[0], utilities.pokemon_types_dim])

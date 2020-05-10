@@ -13,10 +13,11 @@ from imgaug import augmenters as iaa
 
 # full RGB; full HSV, and train HSV augmented are the indispensable ones.
 # Important parameters for the data set creation. Modifying them will change the final set generated.
-image_format_to_use = "RGB"
-full_dataset = True
-use_augmentation = False
-use_type_swap = True
+image_format_to_use = "HSV"
+full_dataset = False
+use_augmentation = True
+use_type_swap = False
+use_two_hot_encoding = True
 
 # This is only used for the Pokemon images with swapped types, which are a special dataset for testing.
 if not use_type_swap:
@@ -51,38 +52,18 @@ my_file = open(csv_type_file)
 csv_reader_dict = csv.DictReader(my_file)
 # csv_reader_object = csv.reader(my_file)
 
-one_hot_labels = []
+encoded_type_labels = []
 
 type_to_categorical = ['Bug', 'Dark', 'Dragon', 'Electric', 'Fairy', 'Fighting', 'Fire', 'Flying',
                        'Ghost', 'Grass', 'Ground', 'Ice', 'Normal', 'Poison', 'Psychic', 'Rock', 'Steel', 'Water']
-print(len(type_to_categorical))  # Must be 18 in size.
 
-csv_reader_dict
-current_count = 1
+encoded_type_labels = utilities.read_types_from_csv(csv_reader_dict, use_two_hot_encoding)
 
-for row in csv_reader_dict:
-    # print(row)
-    # Make a variable with the 18 spaces in 0.
-    one_hot_type = [0] * 18
-    one_hot_type_2 = [0] * 18
-    # We only want the 2nd and 3rd (if any) columns
-    type_string = str(row['Type1'])
-    first_type = type_to_categorical.index(type_string)
-    one_hot_type[first_type] = 1  # Set it to one, as it possesses this type.
-    # Check if it has a second type:
-    if row['Type2'] != '':  # if it does, then add it.
-        type_string = str(row['Type2'])
-        second_type = type_to_categorical.index(type_string)
-        one_hot_type_2[second_type] = 1  # Set it to one, as it ALSO possesses this type.
-        one_hot_labels.append([one_hot_type, one_hot_type_2])
-    else:
-        one_hot_labels.append([one_hot_type, one_hot_type])  # Add the same type TWICE.
+print('Finished types encoding')
+print(encoded_type_labels)
+encoded_type_labels = np.asarray(encoded_type_labels)
 
-print('Finished one hot encoding')
-print(one_hot_labels)
-one_hot_labels = np.asarray(one_hot_labels)
-
-# Now, one_hot_labels has all the one_hot encodings for all the elements.
+# Now, encoded_type_labels has all the one_hot encodings for all the elements.
 # We just have to put it into the same file as the pixel data and that's it.
 pixel_data = []
 image_list = []
@@ -107,9 +88,9 @@ if use_augmentation:
     if not full_dataset:
         training_elements = int((len(image_list) / 100) * 85)  # This will give us 15% for testing
         test_images_list = image_list[training_elements:]  # First assign test ones, to avoid losing info.
-        test_labels_list = one_hot_labels[training_elements:]
+        test_labels_list = encoded_type_labels[training_elements:]
         image_list = image_list[0:training_elements]
-        one_hot_labels = one_hot_labels[0:training_elements]
+        encoded_type_labels = encoded_type_labels[0:training_elements]
 
         print("getting test data augmented.")
         test_pixel_data, test_label_data = utilities.image_augmentation(test_images_list,
@@ -125,7 +106,7 @@ if use_augmentation:
 
     print("getting non-test data augmented.")
     # Now, do the augmentation for the non-test images. If no split was specified, this will contain all images.
-    pixel_data, label_data = utilities.image_augmentation(image_list, one_hot_labels, in_flip_lr=True,
+    pixel_data, label_data = utilities.image_augmentation(image_list, encoded_type_labels, in_flip_lr=True,
                                                           in_gamma_contrast=False,
                                                           in_multiply_saturation=False,
                                                           in_multiply_brightness=False,
@@ -134,18 +115,19 @@ if use_augmentation:
     print("data augmentation successful.")
 else:  # If no augmentation will be applied.
     pixel_data = image_list  # Only pass the variables to the correct names.
-    label_data = one_hot_labels
+    label_data = encoded_type_labels
 
 pixel_data = np.asarray(pixel_data).astype(dtype=np.dtype('Float32'))  # Float64 by default.
 
 # Now, we need to put them in the correct format according to the desired set.
 pixel_data = utilities.convert_to_format(pixel_data, image_format_to_use)
 
-# unison_shuffled_copies(pixel_data, one_hot_labels)  # Shuffled along the first axis only.
+# unison_shuffled_copies(pixel_data, encoded_type_labels)  # Shuffled along the first axis only.
 
 # Finally, put it into a h5f dataset and that's it.
 if full_dataset:
     h5f = h5py.File('pokedataset32_full_' + image_format_to_use +
+                    ('_Two_Hot_Encoded' if use_two_hot_encoding else '') +
                     ('_Augmented' if use_augmentation else '') +
                     ('_Type_Swapped' if use_type_swap else '') + '.h5', 'w')
     # These two lines below are used when the full data set is to be in one file.
@@ -154,6 +136,7 @@ if full_dataset:
     h5f.close()
 else:  # If it has train and test separation.
     h5f = h5py.File('pokedataset32_train_' + image_format_to_use +
+                    ('_Two_Hot_Encoded' if use_two_hot_encoding else '') +
                     ('_Augmented' if use_augmentation else '') +
                     ('_Type_Swapped' if use_type_swap else '') + '.h5', 'w')
     # These four lines below are for the data split into train and test portions.

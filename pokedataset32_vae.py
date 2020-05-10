@@ -35,15 +35,13 @@ from PIL import Image
 import colorsys
 
 
-# We don't need the Ys.
-X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV.h5')
+X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV_Two_Hot_Encoded.h5')
 
-# We don't need the Ys.
-X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
+X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB_Two_Hot_Encoded.h5')
 
-X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5')
+X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Two_Hot_Encoded_Augmented.h5')
 
-test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5',
+test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Two_Hot_Encoded_Augmented.h5',
                                                            in_dataset_x_label='pokedataset32_X_test',
                                                            in_dataset_y_label='pokedataset32_Y_test')
 
@@ -72,14 +70,18 @@ print("expanded Xs and Ys ready")
 # I put the network's definition in the pokedataset32_vae_functions.py file, to unify it with the load model.
 network_instance = utilities.get_network()
 
+optimizer_name = 'adam'
+loss_name = 'vae_loss'
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name)
+
 network_instance = tflearn.regression(network_instance,
                                       # optimizer='rmsprop',
-                                      optimizer='adam',
+                                      optimizer=optimizer_name,
                                       metric='R2',
                                       # loss='mean_square',
                                       loss=utilities.vae_loss,
                                       # loss=utilities.vae_loss_abs_error,
-                                      learning_rate=0.0001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.00001)  # adagrad? #adadelta #nesterov did good,
 
 # proximaladagrad did meh, almost same as others.
 # With adadelta I can't get it to do anything with a small learning rate. with 0.07 i can get near nesterov.
@@ -93,16 +95,14 @@ model = tflearn.DNN(network_instance)
 print("Preparing model to fit.")
 
 model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=100,
+          n_epoch=20,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=32,
+          batch_size=256,
           # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
           validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
           run_id='encoder_decoder')
-
-model_name = "pokedatamodel32_May_7_1_adam_vae_loss_sigmoid_latent48_FC_228_128.tflearn"
 
 print("getting samples to show on screen.")
 encode_decode_sample = model.predict(expanded_full_X_HSV)
@@ -149,4 +149,6 @@ f.show()
 plt.draw()
 plt.waitforbuttonpress()
 
-model.save(model_name)
+print('Now saving the model')
+model.save(final_model_name)
+print('Save successful, closing application now.')

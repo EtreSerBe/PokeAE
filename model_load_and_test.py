@@ -10,15 +10,13 @@ import matplotlib.colors
 
 import PokeAE.pokedataset32_vae_functions as utilities
 
-# We don't need the Ys.
-X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV.h5')
+X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV_Two_Hot_Encoded.h5')
 
-# We don't need the Ys.
-X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB.h5')
+X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB_Two_Hot_Encoded.h5')
 
-X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5')
+X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Two_Hot_Encoded_Augmented.h5')
 
-test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Augmented.h5',
+test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Two_Hot_Encoded_Augmented.h5',
                                                            in_dataset_x_label='pokedataset32_X_test',
                                                            in_dataset_y_label='pokedataset32_Y_test')
 
@@ -55,17 +53,8 @@ encode_decode_sample = model.predict(expanded_fake_X)
 
 reconstructed_pixels = []
 reconstructed_types = []
-reshaped_sample = []
 
-for i in range(0, len(encode_decode_sample)):
-    sample = encode_decode_sample[i][0:3072]
-    reshaped_sample = np.reshape(sample, [1024, 3])
-    # https://matplotlib.org/api/_as_gen/matplotlib.colors.hsv_to_rgb.html#matplotlib.colors.hsv_to_rgb
-    reshaped_sample = matplotlib.colors.hsv_to_rgb(reshaped_sample)
-    pixel_list = reshaped_sample.flatten()
-    reconstructed_pixels.append(pixel_list)
-    reshaped_types = np.reshape(encode_decode_sample[i][3072:3108], [2, 18])
-    reconstructed_types.append(reshaped_types)
+reconstructed_pixels, reconstructed_types = utilities.reconstruct_pixels_and_types(encode_decode_sample)
 
 print("Exporting reconstructed pokemon as an image.")
 utilities.export_as_atlas(X_full_RGB, reconstructed_pixels,
