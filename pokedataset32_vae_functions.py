@@ -18,132 +18,145 @@ original_dim = 3072  # 32 x 32 RGB images.
 pokemon_types_dim = 18  # 18 *2, since we need space for the two possible types.
 currently_using_two_hot_encoding = True
 
-glob_z_mean = 0
-glob_z_std = 0
+global glob_z_mean
+global glob_z_std
 
 # Number of filters in Autoencoder's order.
-NUM_FILTERS_FIRST = 64
-NUM_FILTERS_SECOND = 64
-NUM_FILTERS_THIRD = 64
+NUM_FILTERS_FIRST = 256
+NUM_FILTERS_SECOND = 256
+NUM_FILTERS_THIRD = NUM_FILTERS_SECOND
 # Filter sizes
-FILTER_SIZE_FIRST = 3  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
-FILTER_SIZE_SECOND = 3
-FILTER_SIZE_THIRD = 1
+FILTER_SIZE_FIRST = 2  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
+FILTER_SIZE_SECOND = 2
 # Strides
 FILTER_STRIDES_FIRST = 1
 FILTER_STRIDES_SECOND = 1
-FILTER_STRIDES_THIRD = 1
-
-FULLY_CONNECTED_1_UNITS = 210  # 468 was great # 228  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
-FULLY_CONNECTED_2_UNITS = 128
-# FULLY_CONNECTED_3_UNITS = 164
-latent_dimension = 48
 
 DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
 EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
 EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 
-LAST_ACTIVATION = 'relu'
+# 432 + 18
+# FULLY_CONNECTED_1_UNITS = 192  # 468 was great # 228  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
+# FULLY_CONNECTED_2_UNITS = 168
+# FULLY_CONNECTED_3_UNITS = 128
+latent_dimension = 256
+
+# num_types_fully_connected = 64
+EMBEDDED_ACTIVATION = 'linear'
+LAST_ACTIVATION = 'sigmoid'
+ALL_OTHER_ACTIVATIONS = 'leaky_relu'
 
 
 def get_model_descriptive_name(in_optimizer, in_loss, in_version=''):
     now = datetime.now()
     current_time = now.strftime("%b_%d")  # %b is the code for Short mont version: Dec, Oct, etc.
-    out_name = 'model_' + str(current_time) + '_optimizer_' + in_optimizer +\
-               '_loss_' + str(in_loss) + '_last_activation_' + LAST_ACTIVATION + '_latent_' \
-               + str(latent_dimension) + '_FC_layers_' + str(FULLY_CONNECTED_1_UNITS) + '_' + str(
-                FULLY_CONNECTED_2_UNITS) + '_decoder_width_' + str(DECODER_WIDTH) + \
+    out_name = 'model_' + str(current_time) + '_optim_' + in_optimizer + \
+               '_loss_' + str(in_loss) + '_last_activ_' + LAST_ACTIVATION + '_latent_' \
+               + str(latent_dimension) + '_num_filters_' + str(NUM_FILTERS_FIRST) + '_' + \
+               str(NUM_FILTERS_SECOND) \
+               + '_decoder_width_' + str(DECODER_WIDTH) + \
                in_version + '.tflearn'
     return out_name
 
 
 def get_network():
-    # Building the encoder # The size of the input should be 3108 = 3072 + 18*2
-    # data_augmentation=image_aug, omitted cause TFLearn's augmentation can't work well for our input.
+    # Building the encoder # The size of the input should be 3108 = 3072 + 18
     networkInput = tflearn.input_data(shape=[None, original_dim + pokemon_types_dim])
     # Once the data is in, we need to split the pixel data and the types data.
     map_flat = tf.slice(networkInput, [0, 0], [-1, original_dim])
-    pokemonTypesFlat = tf.slice(networkInput, [0, original_dim], [-1, -1])
+    pokemonTypes = tf.slice(networkInput, [0, original_dim], [-1, -1])
 
     # We reshape the flat versions to something more like the original.
     mapShape = tf.reshape(map_flat, [-1, image_dimension, image_dimension, image_color_dimension])
     print("mapShape dimensions, before Conv_2D #1 are: " + str(mapShape))
-    pokemonTypes = tf.reshape(pokemonTypesFlat, [-1, pokemon_types_dim])
 
     encoderStructure = tflearn.conv_2d(mapShape, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
-                                       strides=FILTER_STRIDES_FIRST, activation='relu')
-    print("encoderStructure before dropout is: " + str(encoderStructure))
-    # encoderStructure = tflearn.dropout(encoderStructure, 0.5)  # Re-add it later with a lower value like: 0.85 0.9
+                                       strides=FILTER_STRIDES_FIRST, activation=ALL_OTHER_ACTIVATIONS)
     print("encoderStructure before max_pool_2D #1 is: " + str(encoderStructure))
     encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
+
     print("encoderStructure before conv_2D #2 is: " + str(encoderStructure))
     encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
-                                       strides=FILTER_STRIDES_SECOND, activation='relu')
+                                       strides=FILTER_STRIDES_SECOND, activation=ALL_OTHER_ACTIVATIONS)
     print("encoderStructure before max_pool_2D #2 is: " + str(encoderStructure))
     encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
     print("encoderStructure before flatten is: " + str(encoderStructure))
-
+    """encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_THIRD, 2,
+                                       strides=2, activation=ALL_OTHER_ACTIVATIONS)"""
+    print("encoderStructure after WEIRD CONVOLUTION is: " + str(encoderStructure))  # Should be 4 by 4
     flatStructure = tflearn.flatten(encoderStructure)
     print("flatStructure is = " + str(flatStructure))
-    flatStructureSize = flatStructure.shape[1]  # Why is it size 2048 with 8 filters and 1024 with 4?
-    print('flatStructureSize = ' + str(flatStructureSize))
-
+    # flatStructure = tflearn.fully_connected(flatStructure, EMBEDDED_VECTOR_TOTAL, activation=ALL_OTHER_ACTIVATIONS)
+    # pre_type_dropout_rate = 1.0
+    # flatStructure = tflearn.dropout(flatStructure, pre_type_dropout_rate)
+    # flatStructure = tflearn.fully_connected(flatStructure, 64, activation=ALL_OTHER_ACTIVATIONS)
     encoder = tf.concat([flatStructure, pokemonTypes], 1)
-
-    encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation='relu')
-
-    encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_2_UNITS, activation='relu')
-
-    # embedded representation? Yes.
-    # encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_3_UNITS, activation='relu')
+    # encoder = tflearn.fully_connected(encoder, FULLY_CONNECTED_1_UNITS, activation=ALL_OTHER_ACTIVATIONS)
+    """my_custom_layer_instance = PixelPlusTypesLayer(0)  # Param doesn't matter.
+    encoder = my_custom_layer_instance(encoder)
+    # encoder = tf.concat([encoder, pokemonTypes], 1)
+    encoder = tflearn.activation(encoder, activation=ALL_OTHER_ACTIVATIONS)
+    print("encoder after custom layer is = " + str(encoder))"""
 
     global glob_z_mean
     global glob_z_std
-    glob_z_mean = tflearn.fully_connected(encoder, latent_dimension)  #, activation='relu')
-    glob_z_std = tflearn.fully_connected(encoder, latent_dimension)  #, activation='relu')
+    glob_z_mean = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION)
+    glob_z_std = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION)
+    #
 
     # Sampler: Normal (gaussian) random distribution
-    eps = tf.random_normal(tf.shape(glob_z_std), dtype=tf.float32, mean=0., stddev=1.0,
-                           name='epsilon')
-    z = glob_z_mean + tf.exp(glob_z_std / 2) * eps
+    eps = tf.random_normal(tf.shape(glob_z_std), dtype=tf.float32, mean=0.0, stddev=1.0,
+                           name='epsilon')  # + 0.00001
+    z = glob_z_mean + tf.exp(glob_z_std / 2.0) * eps
 
-    # decoder = tflearn.fully_connected(z, FULLY_CONNECTED_3_UNITS, activation='relu')
+    # decoder = tflearn.fully_connected(z, FULLY_CONNECTED_1_UNITS, activation=ALL_OTHER_ACTIVATIONS)
+    # decoder = tflearn.batch_normalization(decoder)
+    # decoder = tflearn.fully_connected(z, 64, activation=ALL_OTHER_ACTIVATIONS)
 
-    decoder = tflearn.fully_connected(z, FULLY_CONNECTED_2_UNITS, activation='relu')
+    decoder = tflearn.fully_connected(z, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD + pokemon_types_dim,
+                                      activation=EMBEDDED_ACTIVATION, scope='decoder_fc_1')
 
-    # I made the fully_connected 1 equal to int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim).
-    decoder = tflearn.fully_connected(decoder, FULLY_CONNECTED_1_UNITS, activation='relu')
+    """decoder = tf.concat([decoder, pokemonTypes], 1)
+    decoder_custom_layer_instance = PixelPlusTypesLayer(num_outputs=EMBEDDED_VECTOR_TOTAL)
+    decoderStructure = decoder_custom_layer_instance(decoder)"""
 
-    # decoder = tflearn.fully_connected(decoder, int(EMBEDDED_VECTOR_TOTAL + pokemon_types_dim), activation='relu')
-
-    decoderStructure = tf.slice(decoder, [0, 0], [-1, EMBEDDED_VECTOR_TOTAL])
-    decoderTypes = tf.slice(decoder, [0, EMBEDDED_VECTOR_TOTAL], [-1, -1])
-    print("decoder types size is*****: " + str(decoderTypes))
+    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD], name='slice_1')
+    decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD], [-1, -1], name='slice_2')
+    # decoderTypes = tflearn.activation(decoderTypes, activation='sigmoid')
 
     decoderStructure = tf.reshape(decoderStructure, [-1, DECODER_WIDTH, DECODER_WIDTH,
-                                                     image_color_dimension])
+                                                     NUM_FILTERS_THIRD], name='reshape')
 
     # Decoder's convolution and up-sampling process.
+    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
     decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
-                                       strides=FILTER_STRIDES_SECOND, activation='relu')
-    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+                                       strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_1')
 
+    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
     decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
-                                       strides=FILTER_STRIDES_FIRST, activation='relu')
+                                       strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_2')
+
     decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+    # https://www.tensorflow.org/tutorials/generative/cvae, they use this last layer to return to the original
+    decoderStructure = tflearn.conv_2d(decoderStructure, 3, 2, strides=1, activation=ALL_OTHER_ACTIVATIONS,
+                                       scope='decoder_conv_3')
+    decoderStructure = tflearn.max_pool_2d(decoderStructure, 2, strides=2)
+    print("decoder structure size is*****: " + str(decoderStructure))
+    # decoderStructure = tflearn.dropout(decoderStructure, 0.95)
 
-    # This did not work out. Maybe in another place?
-    # decoderStructure = tflearn.dropout(decoderStructure, 0.60)  # testing this now.
-
-    decoderStructure = tflearn.flatten(decoderStructure)  # With 64 filters, it has 3108*64 = 198,912 connections...
-
+    decoderStructure = tflearn.flatten(decoderStructure)
+    # decoderTypes = tflearn.fully_connected(decoderTypes, pokemon_types_dim)
+    # decoderTypes = tflearn.activation(decoderTypes, activation=ALL_OTHER_ACTIVATIONS)
     network = tf.concat([decoderStructure, decoderTypes], 1)
+    # decoderTypes = tflearn.fully_connected(network, pokemon_types_dim, activation=ALL_OTHER_ACTIVATIONS)
 
-    # Added this layer since maybe it was going from 32,768 to 3,108 units too fast. results were mixed.
-    # network = tflearn.fully_connected(network, 8192, activation='relu')
-
-    print("network before the final fully_connected is: " + str(network))
-    network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation=LAST_ACTIVATION)
+    # network = tflearn.fully_connected(network, original_dim)  # , activation=ALL_OTHER_ACTIVATIONS)
+    # network = tf.concat([decoderStructure, decoderTypes], 1)
+    network = tflearn.flatten(network)
+    network = tflearn.activation(network, activation=LAST_ACTIVATION)
+    # network = tf.clip_by_value(network, -0.999, 0.9999)
+    # network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation=LAST_ACTIVATION)
     return network
 
 
@@ -152,16 +165,31 @@ def vae_loss(y_pred, y_true):
     # https://github.com/tflearn/tflearn/issues/72
     global glob_z_mean
     global glob_z_std
+    glob_kld_weight = 1.0
+    encode_decode_weight = 1.0
     # Reconstruction loss
-    # But this is cross entropy, right? We can't use it right now
-    encode_decode_loss = y_true * tf.math.log(1e-10 + y_pred) \
-                         + (1 - y_true) * tf.math.log(1e-10 + 1 - y_pred)
+    # But this is BINARY cross entropy, right?
+    # https://peltarion.com/knowledge-center/documentation/
+    # modeling-view/build-an-ai-model/loss-functions/binary-crossentropy
+    encode_decode_loss = y_true * tf.math.log(1e-7 + y_pred) \
+                         + (1 - y_true) * tf.math.log(1e-7 + 1 - y_pred)
 
-    encode_decode_loss = -tf.reduce_sum(encode_decode_loss, 1)
+    # encode_decode_loss_types = tf.slice(tf.abs(y_pred+y_true), [0, original_dim], [-1, -1])  # to check
+
+    # Now only use the values ABOVE 1
+    # encode_decode_loss_types = encode_decode_loss_types - 1
+    # encode_decode_loss_types = tf.clip_by_value(encode_decode_loss_types, 0.0, 1.0)
+    # Now it only should have the ones that were correct, right?
+    encode_decode_loss_pixels = -tf.reduce_sum(encode_decode_loss, 1)
+    encode_decode_loss_pixels *= encode_decode_weight
+    # encode_decode_loss_types = -tf.reduce_sum(encode_decode_loss_types, 1)
+    # Now it should tell the loss that this is good, which is why it's negative here.
+    # encode_decode_loss_types *= 0.0  # It did nothing good
     # KL Divergence loss
     kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
     kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
-    return tf.reduce_mean(encode_decode_loss + kl_div_loss)
+    out_kl_div_loss = tf.reduce_mean(encode_decode_loss_pixels + glob_kld_weight * kl_div_loss)
+    return out_kl_div_loss  # + tf.reduce_mean(encode_decode_loss_types)
 
 
 # Define VAE Loss
@@ -169,13 +197,31 @@ def vae_loss_mean_square(y_pred, y_true):
     # https://github.com/tflearn/tflearn/issues/72
     global glob_z_mean
     global glob_z_std
+    kl_weight = 1.00
+    pixels_weight = 1.0
+    types_weight = 1.0
     # Reconstruction loss
-    # But this is cross entropy, right? We can't use it right now
-    encode_decode_loss = tf.reduce_sum(tf.square(y_pred - y_true))
+    square_error = tf.square(y_pred - y_true)
+    encode_decode_loss_pixels = tf.slice(square_error, [0, 0], [-1, original_dim])
+
+    y_true_types = tf.slice(y_true, [0, original_dim], [-1, -1])
+    y_pred_types = tf.slice(y_pred, [0, original_dim], [-1, -1])
+
+    encode_decode_loss_types = y_true_types * tf.math.log(1e-7 + y_pred_types) \
+                               + (1 - y_true_types) * tf.math.log(1e-7 + 1 - y_pred_types)
+
+    encode_decode_loss_pixels = tf.reduce_mean(tf.reduce_sum(encode_decode_loss_pixels, 1))
+    encode_decode_loss_types = -tf.reduce_mean(tf.reduce_sum(encode_decode_loss_types, 1))
+    encode_decode_loss_pixels *= pixels_weight
+    encode_decode_loss_types *= types_weight
+
+    # final_encode_decode_loss = encode_decode_loss_pixels + encode_decode_loss_types
+
     # KL Divergence loss
     kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
     kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
-    return tf.reduce_mean(encode_decode_loss + kl_div_loss)
+    out_kl_div_loss = tf.reduce_mean(kl_div_loss)
+    return encode_decode_loss_pixels + encode_decode_loss_types + out_kl_div_loss * kl_weight
 
 
 def vae_loss_abs_error(y_pred, y_true):
@@ -184,11 +230,106 @@ def vae_loss_abs_error(y_pred, y_true):
     global glob_z_std
     # Reconstruction loss
     # But this is cross entropy, right? We can't use it right now
-    encode_decode_loss = tf.reduce_sum(tf.abs(y_pred - y_true), 1)
+    encode_decode_loss = -tf.reduce_sum(tf.abs(y_pred - y_true), 1)
     # KL Divergence loss
     kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
     kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
     return tf.reduce_mean(encode_decode_loss + kl_div_loss)
+
+
+def get_generative_network(in_trained_model):
+    input_noise = tflearn.input_data(shape=[None, latent_dimension], name='input_noise')
+    decoder = tflearn.fully_connected(input_noise,
+                                      DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD + pokemon_types_dim,
+                                      activation=EMBEDDED_ACTIVATION, scope='decoder_fc_1', reuse=True)
+
+    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD],
+                                name='slice_1')
+    decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD], [-1, -1], name='slice_2')
+    decoderStructure = tf.reshape(decoderStructure, [-1, DECODER_WIDTH, DECODER_WIDTH,
+                                                     NUM_FILTERS_THIRD], name='reshape')
+
+    # Decoder's convolution and up-sampling process.
+    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+    decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
+                                       strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_1', reuse=True)
+
+    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+    decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
+                                       strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_2', reuse=True)
+
+    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+    # https://www.tensorflow.org/tutorials/generative/cvae, they use this last layer to return to the original
+    decoderStructure = tflearn.conv_2d(decoderStructure, 3, 2, strides=1, activation=ALL_OTHER_ACTIVATIONS,
+                                       scope='decoder_conv_3', reuse=True)
+    decoderStructure = tflearn.max_pool_2d(decoderStructure, 2, strides=2)
+
+    decoderStructure = tflearn.flatten(decoderStructure)
+    network = tf.concat([decoderStructure, decoderTypes], 1)
+    network = tflearn.activation(network, activation=LAST_ACTIVATION)
+    generator_model = tflearn.DNN(network, session=in_trained_model.session)
+    return generator_model
+
+
+class PixelPlusTypesLayer(tf.keras.layers.Layer):
+    def __init__(self, num_outputs):
+        super(PixelPlusTypesLayer, self).__init__()
+        self.num_outputs = num_outputs
+
+    # input shape should be x+18 poke-type information, that's why it's -18.
+    def build(self, input_shape):
+        print('input_shape in build function size is: ' + str(input_shape))
+        # custom_weights = {'W': tf.Variable(tf.random_normal([input_shape[-1], 1 + 18]))}
+        self.custom_weight = {'W_custom': tf.Variable(tf.random_normal(shape=[1, input_shape[-1] - 18, 19]),
+                                                      trainable=True, dtype=np.float)}
+        self.bias = {'b': tf.Variable(tf.random_normal([input_shape[-1] - 18]), trainable=True, dtype=np.float)}
+
+    def call(self, in_input, **kwargs):
+        image_information_size = int(in_input.shape[-1]) - pokemon_types_dim
+        print('image_information_size in call function size is: ' + str(image_information_size))
+        print('in_input in call function size is: ' + str(in_input))
+        print('self.custom_weight size is: ' + str(self.custom_weight))
+        print('self.bias size is: ' + str(self.bias))
+        input_1 = tf.slice(in_input, begin=[0, 0], size=[-1, image_information_size])
+        print('input_1 size is: ' + str(input_1))
+        input_2 = tf.slice(in_input, begin=[0, image_information_size], size=[-1, -1])
+        print('input_2 size is: ' + str(input_2))
+        # Input_1 should be the 3072 values from the image, #2 the 18 values representing the poke-types
+        # We must now have a [3072, 19] matrix, were the row is the image value to which it will output,
+        # element 0 is the value it had and elements 1 to 18 are the types
+
+        input_1_transposed = input_1
+        input_1_transposed = tf.reshape(input_1_transposed, shape=[-1, image_information_size, 1])
+        print('input_1_transposed size is: ' + str(input_1_transposed))
+        input_2_repeat = tf.repeat(input_2, repeats=input_1.shape[-1], axis=0)
+        input_2_repeat = tf.reshape(input_2_repeat, shape=[-1, image_information_size, pokemon_types_dim])
+        print('input_2_repeat size is: ' + str(input_2_repeat))
+        full_matrix = tf.concat([input_1_transposed, input_2_repeat], axis=2)  # this should be 3072 by 19 now
+        print('full_matrix size is: ' + str(full_matrix))
+        # My output must be 3072, 1 in size, so input must be [3072, x] * [y, 1], right? it doesn't sound right
+        # https://stackoverflow.com/questions/40670370/dot-product-of-two-vectors-in-tensorflow
+        output = tf.reduce_sum(tf.multiply(full_matrix, self.custom_weight['W_custom']), axis=2)
+        print('output after Keras.DOT size is: ' + str(output))
+        output = tf.reshape(output, shape=[-1, in_input.shape[-1] - pokemon_types_dim]) + self.bias['b']
+        print('output after reshape is: ' + str(output))
+        # output = tf.concat([output, input_2], axis=1)
+        # print('output after concat size is: ' + str(output))
+        return output
+
+
+def predict_batches(in_complete_set_to_predict, in_trained_model, in_number_of_chunks=10):
+    out_encode_decode_sample = []
+    num_chunks = in_number_of_chunks
+    chunk_size = int(len(in_complete_set_to_predict) / num_chunks)
+    print('number of samples is: ' + str(len(in_complete_set_to_predict)) + ' chunk size is: ' + str(chunk_size))
+    for i in range(0, num_chunks - 1):
+        current_slice = in_complete_set_to_predict[chunk_size * i:chunk_size * (i + 1)]
+        out_encode_decode_sample.extend(in_trained_model.predict(current_slice))
+
+    current_slice = in_complete_set_to_predict[chunk_size * num_chunks:]
+    print('number of samples in last slice is: ' + str(len(current_slice)))
+    out_encode_decode_sample.extend(in_trained_model.predict(current_slice))
+    return out_encode_decode_sample
 
 
 def prepare_dataset_for_input_layer(in_h5f_dataset_name, in_dataset_x_label="pokedataset32_X",
@@ -222,7 +363,7 @@ def print_pokemon_types(types, in_print_all=True):
     index_and_value = {}
     for typearray in flat_types:
         for i in range(0, pokemon_types_dim):
-            if typearray[i] >= 0.1:
+            if typearray[i] >= 0.15:
                 index_and_value[i] = typearray[i]
                 types_as_strings.append(type_to_categorical[i] + " : " + str(typearray[i]))
     if in_print_all:
@@ -290,6 +431,59 @@ def export_as_atlas(in_image_list, in_reconstructed_image_list, image_width=32, 
     now = datetime.now()
     current_time = now.strftime("%Y-%m-%d %H-%M")
     print('saving output atlas image in the ImageOutputs folder.')
+    atlas_image.save('ImageOutputs/' + name_prefix + 'Image_'
+                     + '_' + str(current_time) + name_annotations + '.png')
+
+
+def export_multi_type_atlas(in_image_list, in_reconstructed_image_list, in_forced_image_list,
+                            image_width=32, image_height=32,
+                            num_channels=3, name_annotations='', name_prefix=''):
+    num_elements = len(in_image_list)
+    if num_elements == 0:
+        return
+    rows = math.ceil(math.sqrt(num_elements))  # ceil to be the highest integer enough.
+    row_counter = 0
+    column_counter = 0
+    # Make it big enough to put the original above the reconstructed. (That's why multiplied by 2)
+    atlas_image = Image.new('RGB', (image_width * rows, image_height * rows * 3), (0, 0, 0))
+
+    for original, reconstructed, forced in zip(in_image_list, in_reconstructed_image_list, in_forced_image_list):
+        """if column_counter + (row_counter*rows) >= num_elements:
+            break  # This is to stop it as soon as"""
+
+        reshaped_image = np.reshape(
+            np.uint8(np.multiply(original.flatten(), 255.)),
+            [image_width, image_height, num_channels])
+
+        reshaped_reconstructed = np.reshape(
+            np.uint8(np.multiply(reconstructed.flatten(), 255.)),
+            [image_width, image_height, num_channels])
+
+        reshaped_forced = np.reshape(
+            np.uint8(np.multiply(forced.flatten(), 255.)),
+            [image_width, image_height, num_channels])
+        # reshaped_reconstructed = np.asarray(reshaped_reconstructed)
+
+        offset = (column_counter * image_width, row_counter * image_height * 3)
+        im_original = Image.fromarray(reshaped_image, 'RGB')
+        atlas_image.paste(im_original, offset)
+
+        offset = (column_counter * image_width, row_counter * image_height * 3 + image_height)
+        im_reconstructed = Image.fromarray(reshaped_reconstructed, 'RGB')
+        atlas_image.paste(im_reconstructed, offset)
+
+        offset = (column_counter * image_width, row_counter * image_height * 3 + image_height * 2)
+        im_forced = Image.fromarray(reshaped_forced, 'RGB')
+        atlas_image.paste(im_forced, offset)
+        column_counter += 1
+        # Go to the next row.
+        if column_counter == rows:
+            column_counter = 0
+            row_counter += 1
+
+    now = datetime.now()
+    current_time = now.strftime("%Y-%b-%d %H-%M")
+    print('saving output Multi type atlas image in the ImageOutputs folder.')
     atlas_image.save('ImageOutputs/' + name_prefix + 'Image_'
                      + name_annotations + '_' + str(current_time) + '.png')
 
@@ -478,3 +672,15 @@ def convert_to_format(in_image_list, in_format_string):
     else:
         print("Error in convert to format: Non valid in_format_string received.")
     return out_image_list  # Check that the changes to its content remain after return.
+
+
+def zero_center(in_image_list):
+    overall_mean = 0.0
+    output_images = []
+    for image in in_image_list:
+        overall_mean += np.mean(image)
+    overall_mean /= len(in_image_list)
+    for image in in_image_list:
+        image = image - overall_mean
+        output_images.append(image)
+    return output_images

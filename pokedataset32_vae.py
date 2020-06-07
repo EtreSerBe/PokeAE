@@ -30,7 +30,7 @@ import tensorflow as tf
 
 import tflearn
 import h5py
-import PokeAE.pokedataset32_vae_functions as utilities
+import pokedataset32_vae_functions as utilities
 from PIL import Image
 import colorsys
 
@@ -52,16 +52,16 @@ test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_
 # utilities.export_as_atlas(X, X)
 
 
-Y = np.reshape(np.asarray(Y), newshape=[Y.shape[0], utilities.pokemon_types_dim])
-test_Y = np.reshape(np.asarray(test_Y), newshape=[test_Y.shape[0], utilities.pokemon_types_dim])
+Y = Y * 0.5
+test_Y = test_Y * 0.5
+Y_full_HSV = Y_full_HSV * 0.5  # np.clip(Y_full_HSV, 0.0, 1.0)
+Y_full_RGB = Y_full_RGB * 0.5
 
 # Now we add the extra info from the Ys.
 expanded_X = np.append(X, Y, axis=1)  # It already contains the Flip-left-right augmentation.
-expanded_Y = np.append(X, Y, axis=1)  # Not really used right now
 
 # Now, we do the same for the training data
 expanded_test_X = np.append(test_X, test_Y, axis=1)
-expanded_test_Y = np.append(test_X, test_Y, axis=1)  # Not used right now.
 
 # Right now it's the only expanded full that we need.
 expanded_full_X_HSV = np.append(X_full_HSV, Y_full_HSV, axis=1)
@@ -72,7 +72,7 @@ network_instance = utilities.get_network()
 
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
-final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name)
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_2by2')
 
 network_instance = tflearn.regression(network_instance,
                                       # optimizer='rmsprop',
@@ -81,7 +81,7 @@ network_instance = tflearn.regression(network_instance,
                                       # loss='mean_square',
                                       loss=utilities.vae_loss,
                                       # loss=utilities.vae_loss_abs_error,
-                                      learning_rate=0.00001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
 
 # proximaladagrad did meh, almost same as others.
 # With adadelta I can't get it to do anything with a small learning rate. with 0.07 i can get near nesterov.
@@ -90,22 +90,25 @@ network_instance = tflearn.regression(network_instance,
 # momentum got mostly to the same as Nesterov.
 # sgd gets stuck around -2400 R2 too.
 
-model = tflearn.DNN(network_instance)
+model = tflearn.DNN(network_instance)  # , tensorboard_verbose=2)
 
 print("Preparing model to fit.")
 
 model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=20,
+          n_epoch=75,
           shuffle=True,
           show_metric=True,
           snapshot_epoch=True,
-          batch_size=256,
+          batch_size=128,
           # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
           validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
           run_id='encoder_decoder')
 
 print("getting samples to show on screen.")
-encode_decode_sample = model.predict(expanded_full_X_HSV)
+encode_decode_sample = []
+encode_decode_sample = utilities.predict_batches(expanded_full_X_HSV, model, in_number_of_chunks=10)
+
+
 # encode_decode_sample = model.predict(expanded_X)  # Just to test training with RGB. It seemed worse.
 
 print("The number of elements in the predicted samples is: " + str(len(encode_decode_sample)))
@@ -118,14 +121,13 @@ reconstructed_types = []
 reconstructed_pixels, reconstructed_types = utilities.reconstruct_pixels_and_types(encode_decode_sample)
 
 print("Exporting reconstructed pokemon as an image.")
-utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)  # I have checked that it works perfectly.
+# utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)  # I have checked that it works perfectly.
 correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
-# correct_indices = utilities.export_types_csv(new_types_array, reconstructed_types)
 
 # This is used to export an image only containing the ones whose types were correctly predicted by the NN.
-correct_X_RGB = [X_full_RGB[i] for i in correct_indices]
-correct_reconstructed_pixels = [reconstructed_pixels[i] for i in correct_indices]
-utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
+# correct_X_RGB = [X_full_RGB[i] for i in correct_indices]
+# correct_reconstructed_pixels = [reconstructed_pixels[i] for i in correct_indices]
+# utilities.export_as_atlas(correct_X_RGB, correct_reconstructed_pixels, name_annotations='correct')
 
 
 # I used this before to show the results, but now I have the whole image being saved.
