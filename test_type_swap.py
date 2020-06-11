@@ -5,7 +5,7 @@ import tensorflow as tf
 import tflearn
 import matplotlib.pyplot as plt
 import matplotlib.colors
-import pokedataset32_vae_functions as utilities
+import PokeAE.pokedataset32_vae_functions as utilities
 
 X_full_HSV_Type_Swapped, Y_full_HSV_Type_Swapped = \
     utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV_Two_Hot_Encoded_Type_Swapped.h5')

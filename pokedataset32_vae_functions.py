@@ -20,10 +20,13 @@ currently_using_two_hot_encoding = True
 
 global glob_z_mean
 global glob_z_std
+global glob_unique_keys
+global glob_valid_pixels_table
+global glob_session
 
 # Number of filters in Autoencoder's order.
-NUM_FILTERS_FIRST = 256
-NUM_FILTERS_SECOND = 256
+NUM_FILTERS_FIRST = 512
+NUM_FILTERS_SECOND = 512
 NUM_FILTERS_THIRD = NUM_FILTERS_SECOND
 # Filter sizes
 FILTER_SIZE_FIRST = 2  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
@@ -40,12 +43,110 @@ EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 # FULLY_CONNECTED_1_UNITS = 192  # 468 was great # 228  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
 # FULLY_CONNECTED_2_UNITS = 168
 # FULLY_CONNECTED_3_UNITS = 128
-latent_dimension = 256
+latent_dimension = 512
 
 # num_types_fully_connected = 64
-EMBEDDED_ACTIVATION = 'linear'
-LAST_ACTIVATION = 'sigmoid'
+EMBEDDED_ACTIVATION = 'leaky_relu'
+LAST_ACTIVATION = 'relu'
 ALL_OTHER_ACTIVATIONS = 'leaky_relu'
+
+
+def initialize_session():
+    global glob_session
+    glob_session = tf.Session()
+
+
+def get_session():
+    global glob_session
+    return glob_session
+
+
+def closest_number(in_number_to_match, in_collection):
+    if in_number_to_match == 0:
+        return 0
+    lst = np.asarray(in_collection)
+    idx = (np.abs(lst - in_number_to_match)).argmin()
+    return lst[idx]
+
+
+def find_closest_pixels(in_hashed_pixels):
+    global glob_unique_keys
+    global glob_session
+    # sess = tf.get_default_session()
+    with glob_session as sess:
+        output = tf.map_fn(lambda x: closest_number(x, glob_unique_keys.eval()), in_hashed_pixels, dtype=tf.int32)
+    return output
+    """training_mode = tflearn.get_training_mode()
+    training_mode = tflearn.variables.get_value(training_mode, session=glob_session)
+    var_in_hashed_pixels = tflearn.variables.variable(initializer=in_hashed_pixels)
+    var_in_hashed_pixels.assign(value=in_hashed_pixels)
+    tflearn.get_training_mode()
+
+    # temp_indices_array = in_hashed_pixels.eval()
+    # temp_indices_array = [i for i in temp_indices_array if i > 0]
+    # temp_pixels_array = temp_pixels_array[temp_indices_array]
+    i_counter = 0
+    for i in temp_pixels_array:
+        if i > 0:
+            out_closest_pixels[i_counter] = (closest_number(i, glob_unique_keys.eval()))
+        i_counter += 1
+    return out_closest_pixels"""
+
+
+def convert_hash_to_pixel(in_hash_number):
+    h_value = (in_hash_number % 100) / 100
+    s_value = int((in_hash_number % 10000) / 100) / 100  # And remove the first 2 digits
+    v_value = int((in_hash_number % 1000000) / 10000) / 100
+    out_pixel = (h_value, s_value, v_value)
+    return out_pixel
+
+
+def convert_pixel_batch_to_hash(in_pixel_batch):
+    keys_array = tf.reshape(in_pixel_batch, shape=[-1, 3])
+    # Now it should be Num_samples * width * height in size.
+    keys_array = tf.clip_by_value(keys_array, 0.0, 0.99)
+    keys_array = keys_array * 100
+    # Now cast to int to remove the remaining floating point values
+    keys_array = tf.cast(keys_array, dtype=tf.int32)
+    hash_scale = tf.reshape(tf.constant([1, 100, 10000], dtype=tf.int32), shape=[1, 3])
+    keys_array = keys_array * hash_scale
+    keys_array = tf.reshape(tf.reduce_sum(keys_array, axis=1, keepdims=False), shape=[-1])
+    print("The reduced_sum of keys_arrays is: " + str(keys_array))
+    return keys_array
+
+
+# The in_hash_batch has shape [?, 3072]
+def convert_hash_batch_to_pixel(in_hash_batch):
+    # "tf.shape(x)[0] gives a scalar tensor with the variable batch size. Try passing it to reshape."
+    # This shape(x)[0] is quite a life saver! Now I can map each image's pixels per image without mixing them.
+    h_values = (in_hash_batch % 100) / 100
+    s_values = int((in_hash_batch % 10000) / 100) / 100  # And remove the first 2 digits
+    v_values = int((in_hash_batch % 1000000) / 10000) / 100
+    out_pixels = tf.concat((h_values, s_values, v_values), axis=1)
+    out_pixels = tf.reshape(out_pixels, shape=[tf.shape(in_hash_batch)[0], -1])  # [?, 3072], right?
+    return out_pixels
+
+
+def create_hashmap(input_valid_pixels):
+    # Keys and values should have the same arrays (in this case).
+    # They must have [3] each Key. We concatenate all images pixels into a single array of arrays[3]
+    keys_array = convert_pixel_batch_to_hash(input_valid_pixels)
+
+    # Remove duplicates, since they would be mapped to the same value anyway?
+    global glob_unique_keys
+    glob_unique_keys, indices = tf.unique(keys_array)
+    print("The number of elements in unique_keys is: " + str(glob_unique_keys))
+    """with tf.Session() as sess:
+        eval_temp = unique_keys.eval()
+        print(eval_temp)"""
+
+    default_value_constant = tf.constant(-1)
+    print("Default value ready: " + str(default_value_constant))
+    kvt_initializer = tf.lookup.KeyValueTensorInitializer(glob_unique_keys, glob_unique_keys)
+    print("KVT_Initializer ready: " + str(default_value_constant))
+    global glob_valid_pixels_table
+    glob_valid_pixels_table = tf.lookup.StaticHashTable(kvt_initializer, default_value_constant)
+    print("Valid_pixels_table is ready")
 
 
 def get_model_descriptive_name(in_optimizer, in_loss, in_version=''):
@@ -82,8 +183,8 @@ def get_network():
     print("encoderStructure before max_pool_2D #2 is: " + str(encoderStructure))
     encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
     print("encoderStructure before flatten is: " + str(encoderStructure))
-    """encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_THIRD, 2,
-                                       strides=2, activation=ALL_OTHER_ACTIVATIONS)"""
+    """encoderStructure = tflearn.conv_2d(encoderStructure, 3, 1,
+                                       strides=1, activation=ALL_OTHER_ACTIVATIONS)"""
     print("encoderStructure after WEIRD CONVOLUTION is: " + str(encoderStructure))  # Should be 4 by 4
     flatStructure = tflearn.flatten(encoderStructure)
     print("flatStructure is = " + str(flatStructure))
@@ -121,7 +222,8 @@ def get_network():
     decoder_custom_layer_instance = PixelPlusTypesLayer(num_outputs=EMBEDDED_VECTOR_TOTAL)
     decoderStructure = decoder_custom_layer_instance(decoder)"""
 
-    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD], name='slice_1')
+    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD],
+                                name='slice_1')
     decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD], [-1, -1], name='slice_2')
     # decoderTypes = tflearn.activation(decoderTypes, activation='sigmoid')
 
@@ -137,15 +239,32 @@ def get_network():
     decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
                                        strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_2')
 
-    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+    # decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
     # https://www.tensorflow.org/tutorials/generative/cvae, they use this last layer to return to the original
     decoderStructure = tflearn.conv_2d(decoderStructure, 3, 2, strides=1, activation=ALL_OTHER_ACTIVATIONS,
                                        scope='decoder_conv_3')
-    decoderStructure = tflearn.max_pool_2d(decoderStructure, 2, strides=2)
+    # decoderStructure = tflearn.max_pool_2d(decoderStructure, 2, strides=2)
     print("decoder structure size is*****: " + str(decoderStructure))
     # decoderStructure = tflearn.dropout(decoderStructure, 0.95)
 
     decoderStructure = tflearn.flatten(decoderStructure)
+    # We map the predicted pixels to the valid pixels inside the hashmap.
+    """hashed_pixels = convert_pixel_batch_to_hash(decoderStructure)
+    print("Hashed pixels are: " + str(hashed_pixels))
+    global glob_valid_pixels_table
+    global glob_unique_keys
+    hashed_results = glob_valid_pixels_table.lookup(hashed_pixels)
+    hashed_results_not_found = tf.clip_by_value(hashed_results, -1, 0)  # This gives us all not present in hash map.
+    pixels_to_find_closest = -hashed_pixels * hashed_results_not_found  # With a minus to make them stay positive.
+    print("Proceeding to find closest pixels to non-found hashes.")
+    closest_pixels_found = find_closest_pixels(pixels_to_find_closest)
+    hashed_results = tf.clip_by_value(hashed_results, 0, 999999)
+    hashed_results = hashed_results + closest_pixels_found
+    # Now just convert them into HSV floating values.
+    print("Proceeding to convert hash batch to pixels again.")
+    decoderStructure = convert_hash_batch_to_pixel(hashed_results)
+    print("Hash map process successful")"""
+
     # decoderTypes = tflearn.fully_connected(decoderTypes, pokemon_types_dim)
     # decoderTypes = tflearn.activation(decoderTypes, activation=ALL_OTHER_ACTIVATIONS)
     network = tf.concat([decoderStructure, decoderTypes], 1)
@@ -155,7 +274,7 @@ def get_network():
     # network = tf.concat([decoderStructure, decoderTypes], 1)
     network = tflearn.flatten(network)
     network = tflearn.activation(network, activation=LAST_ACTIVATION)
-    # network = tf.clip_by_value(network, -0.999, 0.9999)
+    network = tf.clip_by_value(network, -0.999, 0.9999)
     # network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation=LAST_ACTIVATION)
     return network
 
@@ -190,51 +309,6 @@ def vae_loss(y_pred, y_true):
     kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
     out_kl_div_loss = tf.reduce_mean(encode_decode_loss_pixels + glob_kld_weight * kl_div_loss)
     return out_kl_div_loss  # + tf.reduce_mean(encode_decode_loss_types)
-
-
-# Define VAE Loss
-def vae_loss_mean_square(y_pred, y_true):
-    # https://github.com/tflearn/tflearn/issues/72
-    global glob_z_mean
-    global glob_z_std
-    kl_weight = 1.00
-    pixels_weight = 1.0
-    types_weight = 1.0
-    # Reconstruction loss
-    square_error = tf.square(y_pred - y_true)
-    encode_decode_loss_pixels = tf.slice(square_error, [0, 0], [-1, original_dim])
-
-    y_true_types = tf.slice(y_true, [0, original_dim], [-1, -1])
-    y_pred_types = tf.slice(y_pred, [0, original_dim], [-1, -1])
-
-    encode_decode_loss_types = y_true_types * tf.math.log(1e-7 + y_pred_types) \
-                               + (1 - y_true_types) * tf.math.log(1e-7 + 1 - y_pred_types)
-
-    encode_decode_loss_pixels = tf.reduce_mean(tf.reduce_sum(encode_decode_loss_pixels, 1))
-    encode_decode_loss_types = -tf.reduce_mean(tf.reduce_sum(encode_decode_loss_types, 1))
-    encode_decode_loss_pixels *= pixels_weight
-    encode_decode_loss_types *= types_weight
-
-    # final_encode_decode_loss = encode_decode_loss_pixels + encode_decode_loss_types
-
-    # KL Divergence loss
-    kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
-    kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
-    out_kl_div_loss = tf.reduce_mean(kl_div_loss)
-    return encode_decode_loss_pixels + encode_decode_loss_types + out_kl_div_loss * kl_weight
-
-
-def vae_loss_abs_error(y_pred, y_true):
-    # https://github.com/tflearn/tflearn/issues/72
-    global glob_z_mean
-    global glob_z_std
-    # Reconstruction loss
-    # But this is cross entropy, right? We can't use it right now
-    encode_decode_loss = -tf.reduce_sum(tf.abs(y_pred - y_true), 1)
-    # KL Divergence loss
-    kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
-    kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
-    return tf.reduce_mean(encode_decode_loss + kl_div_loss)
 
 
 def get_generative_network(in_trained_model):
@@ -317,16 +391,17 @@ class PixelPlusTypesLayer(tf.keras.layers.Layer):
         return output
 
 
-def predict_batches(in_complete_set_to_predict, in_trained_model, in_number_of_chunks=10):
+def predict_batches(in_complete_set_to_predict, in_trained_model, in_samples_per_batch=64):
     out_encode_decode_sample = []
-    num_chunks = in_number_of_chunks
-    chunk_size = int(len(in_complete_set_to_predict) / num_chunks)
-    print('number of samples is: ' + str(len(in_complete_set_to_predict)) + ' chunk size is: ' + str(chunk_size))
-    for i in range(0, num_chunks - 1):
-        current_slice = in_complete_set_to_predict[chunk_size * i:chunk_size * (i + 1)]
+    #  = in_samples_per_batch
+    number_of_batches = int(len(in_complete_set_to_predict) / in_samples_per_batch)
+    print('number of samples is: ' + str(len(in_complete_set_to_predict)) +
+          ' number of batches is: ' + str(number_of_batches))
+    for i in range(0, number_of_batches):
+        current_slice = in_complete_set_to_predict[in_samples_per_batch * i:in_samples_per_batch * (i + 1)]
         out_encode_decode_sample.extend(in_trained_model.predict(current_slice))
 
-    current_slice = in_complete_set_to_predict[chunk_size * num_chunks:]
+    current_slice = in_complete_set_to_predict[in_samples_per_batch * number_of_batches:]
     print('number of samples in last slice is: ' + str(len(current_slice)))
     out_encode_decode_sample.extend(in_trained_model.predict(current_slice))
     return out_encode_decode_sample
@@ -684,3 +759,117 @@ def zero_center(in_image_list):
         image = image - overall_mean
         output_images.append(image)
     return output_images
+
+
+def ready_all_data_sets(in_current_data_set):
+    current_dataset = in_current_data_set
+    X_full_HSV, Y_full_HSV = prepare_dataset_for_input_layer(
+        current_dataset + '32_full_HSV_Two_Hot_Encoded.h5',
+        in_dataset_x_label=current_dataset + '32_X',
+        in_dataset_y_label=current_dataset + '32_Y')
+
+    X_full_RGB, Y_full_RGB = prepare_dataset_for_input_layer(
+        current_dataset + '32_full_RGB_Two_Hot_Encoded.h5',
+        in_dataset_x_label=current_dataset + '32_X',
+        in_dataset_y_label=current_dataset + '32_Y')
+
+    X, Y = prepare_dataset_for_input_layer(current_dataset + '32_train_HSV_Two_Hot_Encoded_Augmented.h5',
+                                           in_dataset_x_label=current_dataset + '32_X',
+                                           in_dataset_y_label=current_dataset + '32_Y')
+
+    test_X, test_Y = prepare_dataset_for_input_layer(current_dataset +
+                                                     '32_train_HSV_Two_Hot_Encoded_Augmented.h5',
+                                                     in_dataset_x_label=current_dataset + '32_X_test',
+                                                     in_dataset_y_label=current_dataset + '32_Y_test')
+    return X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y
+
+
+def hashmap_test(input_valid_pixels):
+    # Keys and values should have the same arrays (in this case).
+    # They must have [3] each Key. We concatenate all images pixels into a single array of arrays[3]
+    keys_array = tf.reshape(input_valid_pixels, shape=[-1, 3])
+    # Now it should be Num_samples * width * height in size.
+    print("Keys_array now has: " + str(keys_array))
+    keys_array = tf.clip_by_value(keys_array, 0.0, 0.99)
+    # Multiply the first column of the [3] by 100 and make it an it,
+    keys_array = keys_array * 100
+    # Now cast to int to remove the remaining floating point values
+    keys_array = tf.cast(keys_array, dtype=tf.int32)
+    hash_scale = tf.reshape(tf.constant([1, 100, 10000], dtype=tf.int32), shape=[1, 3])
+    keys_array = keys_array * hash_scale
+    keys_array = tf.reshape(tf.reduce_sum(keys_array, axis=1, keepdims=False), shape=[-1])
+    print("The reduced_sum of keys_arrays is: " + str(keys_array))
+    # Remove duplicates, since they would be mapped to the same value anyway?
+    unique_keys, indices = tf.unique(keys_array)
+    print("The number of elements in unique_keys is: " + str(unique_keys))
+    """with tf.Session() as sess:
+        eval_temp = unique_keys.eval()
+        print(eval_temp)"""
+
+    default_value_constant = tf.constant(-1)
+    print("Default value ready: " + str(default_value_constant))
+    kvt_initializer = tf.lookup.KeyValueTensorInitializer(unique_keys, unique_keys)
+    print("KVT_Initializer ready: " + str(default_value_constant))
+    valid_pixels_table = tf.lookup.StaticHashTable(kvt_initializer, default_value_constant)
+    print("Valid_pixels_table is ready")
+
+    test_input = tf.constant(999997, dtype=tf.int32)
+    out = valid_pixels_table.lookup(test_input)
+
+    with tf.Session() as sess:
+        # valid_pixels_table.iniinit.run()
+        sess.run(tf.tables_initializer())
+        out_eval = out.eval()
+        if out_eval == -1:
+            close_one = closest_number(test_input.eval(), unique_keys.eval())
+            original_pixel = convert_hash_to_pixel(close_one)
+        print(out.eval())
+        print(sess.run(out))
+        #
+        print("Hashmap ready with the pixels")
+
+
+"""# Define VAE Loss
+def vae_loss_mean_square(y_pred, y_true):
+    # https://github.com/tflearn/tflearn/issues/72
+    global glob_z_mean
+    global glob_z_std
+    kl_weight = 1.00
+    pixels_weight = 1.0
+    types_weight = 1.0
+    # Reconstruction loss
+    square_error = tf.square(y_pred - y_true)
+    encode_decode_loss_pixels = tf.slice(square_error, [0, 0], [-1, original_dim])
+
+    y_true_types = tf.slice(y_true, [0, original_dim], [-1, -1])
+    y_pred_types = tf.slice(y_pred, [0, original_dim], [-1, -1])
+
+    encode_decode_loss_types = y_true_types * tf.math.log(1e-7 + y_pred_types) \
+                               + (1 - y_true_types) * tf.math.log(1e-7 + 1 - y_pred_types)
+
+    encode_decode_loss_pixels = tf.reduce_mean(tf.reduce_sum(encode_decode_loss_pixels, 1))
+    encode_decode_loss_types = -tf.reduce_mean(tf.reduce_sum(encode_decode_loss_types, 1))
+    encode_decode_loss_pixels *= pixels_weight
+    encode_decode_loss_types *= types_weight
+
+    # final_encode_decode_loss = encode_decode_loss_pixels + encode_decode_loss_types
+
+    # KL Divergence loss
+    kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
+    kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
+    out_kl_div_loss = tf.reduce_mean(kl_div_loss)
+    return encode_decode_loss_pixels + encode_decode_loss_types + out_kl_div_loss * kl_weight
+
+
+def vae_loss_abs_error(y_pred, y_true):
+    # https://github.com/tflearn/tflearn/issues/72
+    global glob_z_mean
+    global glob_z_std
+    # Reconstruction loss
+    # But this is cross entropy, right? We can't use it right now
+    encode_decode_loss = -tf.reduce_sum(tf.abs(y_pred - y_true), 1)
+    # KL Divergence loss
+    kl_div_loss = 1 + glob_z_std - tf.square(glob_z_mean) - tf.exp(glob_z_std)
+    kl_div_loss = -0.5 * tf.reduce_sum(kl_div_loss, 1)
+    return tf.reduce_mean(encode_decode_loss + kl_div_loss)
+"""
