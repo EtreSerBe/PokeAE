@@ -30,7 +30,7 @@ import tensorflow as tf
 
 import tflearn
 import h5py
-import PokeAE.pokedataset32_vae_functions as utilities
+import pokedataset32_vae_functions as utilities
 from PIL import Image
 import colorsys
 

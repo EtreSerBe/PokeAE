@@ -7,29 +7,12 @@ import csv
 import h5py
 import glob
 import numpy as np
-import PokeAE.pokedataset32_vae_functions as utilities
+import pokedataset32_vae_functions as utilities
 from PIL import Image
 from imgaug import augmenters as iaa
 
-# full RGB; full HSV, and train HSV augmented are the indispensable ones.
-# Important parameters for the data set creation. Modifying them will change the final set generated.
-image_format_to_use = "HSV"
-full_dataset = True
-use_augmentation = False
-use_type_information = False
-use_two_hot_encoding = True
-
-# This is only used for the Pokemon images with swapped types, which are a special dataset for testing.
-if not use_type_information:
-    source_folder = 'C:/Users/Adrián González/Desktop/anime faces dataset/'
-    csv_type_file = ''
-else:
-    source_folder = 'C:/Users/Adrián González/Desktop/anime faces dataset/'
-    csv_type_file = 'anime_faces_types.csv'
-    # Load CSV file, indicate that the first column represents labels
-    # Now, we can check for the
-    my_file = open(csv_type_file)
-    csv_reader_dict = csv.DictReader(my_file)
+# source_folder = 'C:/Users/Adrián González/Desktop/anime faces dataset/'
+source_folder = 'C:/Users/Adrian/Downloads/images/'
 
 
 # As seen in https://stackoverflow.com/questions/4601373/better-way-to-shuffle-two-numpy-arrays-in-unison

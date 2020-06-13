@@ -8,7 +8,7 @@ import tflearn
 
 import matplotlib.colors
 
-import PokeAE.pokedataset32_vae_functions as utilities
+import pokedataset32_vae_functions as utilities
 
 # current_dataset = 'pokedataset'
 current_dataset = 'anime_faces_'

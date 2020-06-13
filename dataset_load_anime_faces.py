@@ -7,7 +7,7 @@ import csv
 import h5py
 import glob
 import numpy as np
-import PokeAE.pokedataset32_vae_functions as utilities
+import pokedataset32_vae_functions as utilities
 from PIL import Image
 from imgaug import augmenters as iaa
 
