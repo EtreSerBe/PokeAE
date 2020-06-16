@@ -67,72 +67,70 @@ print("expanded Xs and Ys ready")
 # utilities.initialize_session()
 # current_session = utilities.get_session()
 
-# I put the network's definition in the pokedataset32_vae_functions.py file, to unify it with the load model.
-network_instance = utilities.get_network()
 
 predict_full_dataset = False
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
-final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_2by2')
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_anime_faces')
+
+# I put the network's definition in the pokedataset32_vae_functions.py file, to unify it with the load model.
+network_instance = utilities.get_network()
 
 network_instance = tflearn.regression(network_instance,
-                                      # optimizer='rmsprop',
-                                      optimizer=optimizer_name,
-                                      metric='R2',
-                                      # loss='mean_square',
-                                      loss=utilities.vae_loss,
-                                      # loss=utilities.vae_loss_abs_error,
-                                      learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
+                                          # optimizer='rmsprop',
+                                          optimizer=optimizer_name,
+                                          metric='R2',
+                                          # loss='mean_square',
+                                          loss=utilities.vae_loss,
+                                          # loss=utilities.vae_loss_abs_error,
+                                          learning_rate=0.0001)  # adagrad? #adadelta #nesterov did good,
+model = tflearn.DNN(network_instance)  # , session=current_session)  # , tensorboard_verbose=2)
+strategy = tf.distribute.MirroredStrategy()
+with strategy.scope():
 
-# proximaladagrad did meh, almost same as others.
-# With adadelta I can't get it to do anything with a small learning rate. with 0.07 i can get near nesterov.
-# Adagrad gets stuck around- 0.2400 R2.
-# rmsprop not usable?
-# momentum got mostly to the same as Nesterov.
-# sgd gets stuck around -2400 R2 too.
+    # proximaladagrad did meh, almost same as others.
+    # With adadelta I can't get it to do anything with a small learning rate. with 0.07 i can get near nesterov.
+    # Adagrad gets stuck around- 0.2400 R2.
+    # rmsprop not usable?
+    # momentum got mostly to the same as Nesterov.
+    # sgd gets stuck around -2400 R2 too.
 
-model = tflearn.DNN(network_instance)  #, session=current_session)  # , tensorboard_verbose=2)
+    print("Preparing model to fit.")
 
-print("Preparing model to fit.")
+    model.fit(expanded_X, Y_targets=expanded_X,
+              n_epoch=3,
+              shuffle=True,
+              show_metric=True,
+              snapshot_epoch=True,
+              batch_size=128,
+              # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
+              validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
+              run_id='encoder_decoder')
 
-model.fit(expanded_X, Y_targets=expanded_X,
-          n_epoch=5,
-          shuffle=True,
-          show_metric=True,
-          snapshot_epoch=True,
-          batch_size=64,
-          # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
-          validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
-          run_id='encoder_decoder')
+    print("getting samples to show on screen.")
+    encode_decode_sample = []
+    if predict_full_dataset:
+        predicted_X = X
+        predicted_Y = Y_full_RGB
+        encode_decode_sample = utilities.predict_batches(expanded_full_X_HSV, model, in_samples_per_batch=64)
+    else:
+        predicted_X = small_X
+        predicted_Y = small_Y
+        encode_decode_sample = utilities.predict_batches(expanded_small_X, model, in_samples_per_batch=64)
 
-print("getting samples to show on screen.")
-encode_decode_sample = []
-if predict_full_dataset:
-    predicted_X = X
-    predicted_Y = Y_full_RGB
-    encode_decode_sample = utilities.predict_batches(expanded_full_X_HSV, model, in_samples_per_batch=64)
-else:
-    predicted_X = small_X
-    predicted_Y = small_Y
-    encode_decode_sample = utilities.predict_batches(expanded_small_X, model, in_samples_per_batch=64)
+    # encode_decode_sample = model.predict(expanded_X)  # Just to test training with RGB. It seemed worse.
+    print("The number of elements in the predicted samples is: " + str(len(encode_decode_sample)))
+    reconstructed_pixels = []
+    reconstructed_types = []
+    # Made a function to avoid repeating that fragment of code in other python files.
+    reconstructed_pixels, reconstructed_types = utilities.reconstruct_pixels_and_types(encode_decode_sample)
 
-# encode_decode_sample = model.predict(expanded_X)  # Just to test training with RGB. It seemed worse.
-
-print("The number of elements in the predicted samples is: " + str(len(encode_decode_sample)))
-
-reconstructed_pixels = []
-reconstructed_types = []
-# reshaped_sample = []
-
-# Made a function to avoid repeating that fragment of code in other python files.
-reconstructed_pixels, reconstructed_types = utilities.reconstruct_pixels_and_types(encode_decode_sample)
-
-print("Exporting reconstructed pokemon as an image.")
-# utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)  # I have checked that it works perfectly.
-if predict_full_dataset:
-    correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
-else:
-    correct_indices = utilities.export_types_csv(small_Y, reconstructed_types)
+    print("Exporting reconstructed pokemon as an image.")
+    # utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)  # I have checked that it works perfectly.
+    if predict_full_dataset:
+        correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
+    else:
+        correct_indices = utilities.export_types_csv(small_Y, reconstructed_types)
 
 # This is used to export an image only containing the ones whose types were correctly predicted by the NN.
 # correct_X_RGB = [X_full_RGB[i] for i in correct_indices]

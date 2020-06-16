@@ -51,104 +51,6 @@ LAST_ACTIVATION = 'relu'
 ALL_OTHER_ACTIVATIONS = 'leaky_relu'
 
 
-def initialize_session():
-    global glob_session
-    glob_session = tf.Session()
-
-
-def get_session():
-    global glob_session
-    return glob_session
-
-
-def closest_number(in_number_to_match, in_collection):
-    if in_number_to_match == 0:
-        return 0
-    lst = np.asarray(in_collection)
-    idx = (np.abs(lst - in_number_to_match)).argmin()
-    return lst[idx]
-
-
-def find_closest_pixels(in_hashed_pixels):
-    global glob_unique_keys
-    global glob_session
-    # sess = tf.get_default_session()
-    with glob_session as sess:
-        output = tf.map_fn(lambda x: closest_number(x, glob_unique_keys.eval()), in_hashed_pixels, dtype=tf.int32)
-    return output
-    """training_mode = tflearn.get_training_mode()
-    training_mode = tflearn.variables.get_value(training_mode, session=glob_session)
-    var_in_hashed_pixels = tflearn.variables.variable(initializer=in_hashed_pixels)
-    var_in_hashed_pixels.assign(value=in_hashed_pixels)
-    tflearn.get_training_mode()
-
-    # temp_indices_array = in_hashed_pixels.eval()
-    # temp_indices_array = [i for i in temp_indices_array if i > 0]
-    # temp_pixels_array = temp_pixels_array[temp_indices_array]
-    i_counter = 0
-    for i in temp_pixels_array:
-        if i > 0:
-            out_closest_pixels[i_counter] = (closest_number(i, glob_unique_keys.eval()))
-        i_counter += 1
-    return out_closest_pixels"""
-
-
-def convert_hash_to_pixel(in_hash_number):
-    h_value = (in_hash_number % 100) / 100
-    s_value = int((in_hash_number % 10000) / 100) / 100  # And remove the first 2 digits
-    v_value = int((in_hash_number % 1000000) / 10000) / 100
-    out_pixel = (h_value, s_value, v_value)
-    return out_pixel
-
-
-def convert_pixel_batch_to_hash(in_pixel_batch):
-    keys_array = tf.reshape(in_pixel_batch, shape=[-1, 3])
-    # Now it should be Num_samples * width * height in size.
-    keys_array = tf.clip_by_value(keys_array, 0.0, 0.99)
-    keys_array = keys_array * 100
-    # Now cast to int to remove the remaining floating point values
-    keys_array = tf.cast(keys_array, dtype=tf.int32)
-    hash_scale = tf.reshape(tf.constant([1, 100, 10000], dtype=tf.int32), shape=[1, 3])
-    keys_array = keys_array * hash_scale
-    keys_array = tf.reshape(tf.reduce_sum(keys_array, axis=1, keepdims=False), shape=[-1])
-    print("The reduced_sum of keys_arrays is: " + str(keys_array))
-    return keys_array
-
-
-# The in_hash_batch has shape [?, 3072]
-def convert_hash_batch_to_pixel(in_hash_batch):
-    # "tf.shape(x)[0] gives a scalar tensor with the variable batch size. Try passing it to reshape."
-    # This shape(x)[0] is quite a life saver! Now I can map each image's pixels per image without mixing them.
-    h_values = (in_hash_batch % 100) / 100
-    s_values = int((in_hash_batch % 10000) / 100) / 100  # And remove the first 2 digits
-    v_values = int((in_hash_batch % 1000000) / 10000) / 100
-    out_pixels = tf.concat((h_values, s_values, v_values), axis=1)
-    out_pixels = tf.reshape(out_pixels, shape=[tf.shape(in_hash_batch)[0], -1])  # [?, 3072], right?
-    return out_pixels
-
-
-def create_hashmap(input_valid_pixels):
-    # Keys and values should have the same arrays (in this case).
-    # They must have [3] each Key. We concatenate all images pixels into a single array of arrays[3]
-    keys_array = convert_pixel_batch_to_hash(input_valid_pixels)
-
-    # Remove duplicates, since they would be mapped to the same value anyway?
-    global glob_unique_keys
-    glob_unique_keys, indices = tf.unique(keys_array)
-    print("The number of elements in unique_keys is: " + str(glob_unique_keys))
-    """with tf.Session() as sess:
-        eval_temp = unique_keys.eval()
-        print(eval_temp)"""
-
-    default_value_constant = tf.constant(-1)
-    print("Default value ready: " + str(default_value_constant))
-    kvt_initializer = tf.lookup.KeyValueTensorInitializer(glob_unique_keys, glob_unique_keys)
-    print("KVT_Initializer ready: " + str(default_value_constant))
-    global glob_valid_pixels_table
-    glob_valid_pixels_table = tf.lookup.StaticHashTable(kvt_initializer, default_value_constant)
-    print("Valid_pixels_table is ready")
-
-
 def get_model_descriptive_name(in_optimizer, in_loss, in_version=''):
     now = datetime.now()
     current_time = now.strftime("%b_%d")  # %b is the code for Short mont version: Dec, Oct, etc.
@@ -284,7 +186,7 @@ def vae_loss(y_pred, y_true):
     # https://github.com/tflearn/tflearn/issues/72
     global glob_z_mean
     global glob_z_std
-    glob_kld_weight = 1.0
+    glob_kld_weight = 0.90
     encode_decode_weight = 1.0
     # Reconstruction loss
     # But this is BINARY cross entropy, right?
@@ -332,15 +234,15 @@ def get_generative_network(in_trained_model):
     decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
                                        strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_2', reuse=True)
 
-    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+    # decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
     # https://www.tensorflow.org/tutorials/generative/cvae, they use this last layer to return to the original
     decoderStructure = tflearn.conv_2d(decoderStructure, 3, 2, strides=1, activation=ALL_OTHER_ACTIVATIONS,
                                        scope='decoder_conv_3', reuse=True)
-    decoderStructure = tflearn.max_pool_2d(decoderStructure, 2, strides=2)
 
     decoderStructure = tflearn.flatten(decoderStructure)
     network = tf.concat([decoderStructure, decoderTypes], 1)
     network = tflearn.activation(network, activation=LAST_ACTIVATION)
+    network = tf.clip_by_value(network, -0.999, 0.9999)
     generator_model = tflearn.DNN(network, session=in_trained_model.session)
     return generator_model
 
@@ -784,6 +686,104 @@ def ready_all_data_sets(in_current_data_set):
     return X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y
 
 
+def initialize_session():
+    global glob_session
+    glob_session = tf.Session()
+
+
+def get_session():
+    global glob_session
+    return glob_session
+
+
+def closest_number(in_number_to_match, in_collection):
+    if in_number_to_match == 0:
+        return 0
+    lst = np.asarray(in_collection)
+    idx = (np.abs(lst - in_number_to_match)).argmin()
+    return lst[idx]
+
+
+def find_closest_pixels(in_hashed_pixels):
+    global glob_unique_keys
+    global glob_session
+    # sess = tf.get_default_session()
+    with glob_session as sess:
+        output = tf.map_fn(lambda x: closest_number(x, glob_unique_keys.eval()), in_hashed_pixels, dtype=tf.int32)
+    return output
+    """training_mode = tflearn.get_training_mode()
+    training_mode = tflearn.variables.get_value(training_mode, session=glob_session)
+    var_in_hashed_pixels = tflearn.variables.variable(initializer=in_hashed_pixels)
+    var_in_hashed_pixels.assign(value=in_hashed_pixels)
+    tflearn.get_training_mode()
+
+    # temp_indices_array = in_hashed_pixels.eval()
+    # temp_indices_array = [i for i in temp_indices_array if i > 0]
+    # temp_pixels_array = temp_pixels_array[temp_indices_array]
+    i_counter = 0
+    for i in temp_pixels_array:
+        if i > 0:
+            out_closest_pixels[i_counter] = (closest_number(i, glob_unique_keys.eval()))
+        i_counter += 1
+    return out_closest_pixels"""
+
+
+def convert_hash_to_pixel(in_hash_number):
+    h_value = (in_hash_number % 100) / 100
+    s_value = int((in_hash_number % 10000) / 100) / 100  # And remove the first 2 digits
+    v_value = int((in_hash_number % 1000000) / 10000) / 100
+    out_pixel = (h_value, s_value, v_value)
+    return out_pixel
+
+
+def convert_pixel_batch_to_hash(in_pixel_batch):
+    keys_array = tf.reshape(in_pixel_batch, shape=[-1, 3])
+    # Now it should be Num_samples * width * height in size.
+    keys_array = tf.clip_by_value(keys_array, 0.0, 0.99)
+    keys_array = keys_array * 100
+    # Now cast to int to remove the remaining floating point values
+    keys_array = tf.cast(keys_array, dtype=tf.int32)
+    hash_scale = tf.reshape(tf.constant([1, 100, 10000], dtype=tf.int32), shape=[1, 3])
+    keys_array = keys_array * hash_scale
+    keys_array = tf.reshape(tf.reduce_sum(keys_array, axis=1, keepdims=False), shape=[-1])
+    print("The reduced_sum of keys_arrays is: " + str(keys_array))
+    return keys_array
+
+
+# The in_hash_batch has shape [?, 3072]
+def convert_hash_batch_to_pixel(in_hash_batch):
+    # "tf.shape(x)[0] gives a scalar tensor with the variable batch size. Try passing it to reshape."
+    # This shape(x)[0] is quite a life saver! Now I can map each image's pixels per image without mixing them.
+    h_values = (in_hash_batch % 100) / 100
+    s_values = int((in_hash_batch % 10000) / 100) / 100  # And remove the first 2 digits
+    v_values = int((in_hash_batch % 1000000) / 10000) / 100
+    out_pixels = tf.concat((h_values, s_values, v_values), axis=1)
+    out_pixels = tf.reshape(out_pixels, shape=[tf.shape(in_hash_batch)[0], -1])  # [?, 3072], right?
+    return out_pixels
+
+
+def create_hashmap(input_valid_pixels):
+    # Keys and values should have the same arrays (in this case).
+    # They must have [3] each Key. We concatenate all images pixels into a single array of arrays[3]
+    keys_array = convert_pixel_batch_to_hash(input_valid_pixels)
+
+    # Remove duplicates, since they would be mapped to the same value anyway?
+    global glob_unique_keys
+    glob_unique_keys, indices = tf.unique(keys_array)
+    print("The number of elements in unique_keys is: " + str(glob_unique_keys))
+    """with tf.Session() as sess:
+        eval_temp = unique_keys.eval()
+        print(eval_temp)"""
+
+    default_value_constant = tf.constant(-1)
+    print("Default value ready: " + str(default_value_constant))
+    kvt_initializer = tf.lookup.KeyValueTensorInitializer(glob_unique_keys, glob_unique_keys)
+    print("KVT_Initializer ready: " + str(default_value_constant))
+    global glob_valid_pixels_table
+    glob_valid_pixels_table = tf.lookup.StaticHashTable(kvt_initializer, default_value_constant)
+    print("Valid_pixels_table is ready")
+
+
 def hashmap_test(input_valid_pixels):
     # Keys and values should have the same arrays (in this case).
     # They must have [3] each Key. We concatenate all images pixels into a single array of arrays[3]
@@ -827,6 +827,8 @@ def hashmap_test(input_valid_pixels):
         print(sess.run(out))
         #
         print("Hashmap ready with the pixels")
+
+
 
 
 """# Define VAE Loss

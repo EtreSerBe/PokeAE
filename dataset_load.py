@@ -14,9 +14,9 @@ from imgaug import augmenters as iaa
 # full RGB; full HSV, and train HSV augmented are the indispensable ones.
 # Important parameters for the data set creation. Modifying them will change the final set generated.
 image_format_to_use = "HSV"
-full_dataset = True
-use_augmentation = False
-use_type_swap = True
+full_dataset = False
+use_augmentation = True
+use_type_swap = False
 use_two_hot_encoding = True
 
 # This is only used for the Pokemon images with swapped types, which are a special dataset for testing.

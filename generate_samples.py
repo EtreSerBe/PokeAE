@@ -12,18 +12,6 @@ import matplotlib.pyplot as plt
 
 import pokedataset32_vae_functions as utilities
 
-X_full_HSV, Y_full_HSV = utilities.prepare_dataset_for_input_layer('pokedataset32_full_HSV_Two_Hot_Encoded.h5')
-
-X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer('pokedataset32_full_RGB_Two_Hot_Encoded.h5')
-
-# X, Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Two_Hot_Encoded_Augmented.h5')
-
-"""test_X, test_Y = utilities.prepare_dataset_for_input_layer('pokedataset32_train_HSV_Two_Hot_Encoded_Augmented.h5',
-                                                           in_dataset_x_label='pokedataset32_X_test',
-                                                           in_dataset_y_label='pokedataset32_Y_test')"""
-
-Y_full_HSV = Y_full_HSV * 0.50
-expanded_full_X_HSV = np.append(X_full_HSV, Y_full_HSV, axis=1)
 print("getting network to load model*******************")
 network_instance = utilities.get_network()
 
@@ -41,8 +29,8 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("Saved models/model_Jun_05_optim_adam_loss_vae_loss_"
-           "last_activ_sigmoid_latent_128_num_filters_256_256_decoder_width_8_2by2_BEST.tflearn")
+model.load("saved_models/model_Jun_16_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_512_num_filters_512_512_decoder_width_8_anime_faces_V10.tflearn")
 
 print("MODEL SUCCESSFULLY LOADED.")
 

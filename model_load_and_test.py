@@ -32,7 +32,7 @@ network_instance = tflearn.regression(network_instance,
                                       optimizer='adam',
                                       metric='R2',
                                       loss=utilities.vae_loss,
-                                      learning_rate=0.001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.0001)  # adagrad? #adadelta #nesterov did good,
 
 model = tflearn.DNN(network_instance)
 
@@ -40,7 +40,7 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("Saved models/model_Jun_11_optim_adam_loss_vae_loss_"
+model.load("saved_models/model_Jun_11_optim_adam_loss_vae_loss_"
            "last_activ_relu_latent_512_num_filters_512_512_decoder_width_8_2by2.tflearn")
 
 predict_full_dataset = False
