@@ -30,7 +30,7 @@ print("LOADING MODEL.")
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
 model.load("saved_models/model_Jun_16_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_512_num_filters_512_512_decoder_width_8_anime_faces_V10.tflearn")
+           "last_activ_relu_latent_64_num_filters_512_128_decoder_width_8_V3.tflearn")
 
 print("MODEL SUCCESSFULLY LOADED.")
 
@@ -38,7 +38,7 @@ generator_model = utilities.get_generative_network(model)
 print("LOADED GENERATOR MODEL.")
 
 num_samples = utilities.latent_dimension
-mean = 0.0
+mean = 0.50
 std_dev = 1.0
 x_axis = norm.ppf(np.linspace(0., 1., 100))
 y_axis = norm.ppf(np.linspace(0., 1., 10))

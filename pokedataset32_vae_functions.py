@@ -27,13 +27,13 @@ global glob_session
 # Number of filters in Autoencoder's order.
 NUM_FILTERS_FIRST = 512
 NUM_FILTERS_SECOND = 512
-NUM_FILTERS_THIRD = NUM_FILTERS_SECOND
+# NUM_FILTERS_THIRD = 2048  # NUM_FILTERS_SECOND
 # Filter sizes
 FILTER_SIZE_FIRST = 2  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
 FILTER_SIZE_SECOND = 2
 # Strides
-FILTER_STRIDES_FIRST = 1
-FILTER_STRIDES_SECOND = 1
+FILTER_STRIDES_FIRST = 2
+FILTER_STRIDES_SECOND = 2
 
 DECODER_WIDTH = 8  # With the newly added Conv2d and maxPool layers added, it was reduced from 8 down to 4
 EMBEDDED_VECTOR_SIZE = DECODER_WIDTH * DECODER_WIDTH
@@ -43,10 +43,10 @@ EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 # FULLY_CONNECTED_1_UNITS = 192  # 468 was great # 228  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
 # FULLY_CONNECTED_2_UNITS = 168
 # FULLY_CONNECTED_3_UNITS = 128
-latent_dimension = 512
+latent_dimension = 64
 
 # num_types_fully_connected = 64
-EMBEDDED_ACTIVATION = 'leaky_relu'
+EMBEDDED_ACTIVATION = 'linear'
 LAST_ACTIVATION = 'relu'
 ALL_OTHER_ACTIVATIONS = 'leaky_relu'
 
@@ -76,18 +76,11 @@ def get_network():
 
     encoderStructure = tflearn.conv_2d(mapShape, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
                                        strides=FILTER_STRIDES_FIRST, activation=ALL_OTHER_ACTIVATIONS)
-    print("encoderStructure before max_pool_2D #1 is: " + str(encoderStructure))
-    encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
-
-    print("encoderStructure before conv_2D #2 is: " + str(encoderStructure))
     encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
                                        strides=FILTER_STRIDES_SECOND, activation=ALL_OTHER_ACTIVATIONS)
-    print("encoderStructure before max_pool_2D #2 is: " + str(encoderStructure))
-    encoderStructure = tflearn.max_pool_2d(encoderStructure, 2, strides=2)
-    print("encoderStructure before flatten is: " + str(encoderStructure))
-    """encoderStructure = tflearn.conv_2d(encoderStructure, 3, 1,
-                                       strides=1, activation=ALL_OTHER_ACTIVATIONS)"""
-    print("encoderStructure after WEIRD CONVOLUTION is: " + str(encoderStructure))  # Should be 4 by 4
+    """encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_THIRD, 2,
+                                       strides=2, activation=ALL_OTHER_ACTIVATIONS)
+    print("encoderStructure after WEIRD CONVOLUTION is: " + str(encoderStructure))  # Should be 4 by 4"""
     flatStructure = tflearn.flatten(encoderStructure)
     print("flatStructure is = " + str(flatStructure))
     # flatStructure = tflearn.fully_connected(flatStructure, EMBEDDED_VECTOR_TOTAL, activation=ALL_OTHER_ACTIVATIONS)
@@ -117,37 +110,47 @@ def get_network():
     # decoder = tflearn.batch_normalization(decoder)
     # decoder = tflearn.fully_connected(z, 64, activation=ALL_OTHER_ACTIVATIONS)
 
-    decoder = tflearn.fully_connected(z, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD + pokemon_types_dim,
-                                      activation=EMBEDDED_ACTIVATION, scope='decoder_fc_1')
+    decoder = tflearn.fully_connected(z, DECODER_WIDTH * DECODER_WIDTH * 64 + pokemon_types_dim,
+                                      activation=ALL_OTHER_ACTIVATIONS, scope='decoder_fc_1')
 
     """decoder = tf.concat([decoder, pokemonTypes], 1)
     decoder_custom_layer_instance = PixelPlusTypesLayer(num_outputs=EMBEDDED_VECTOR_TOTAL)
     decoderStructure = decoder_custom_layer_instance(decoder)"""
 
-    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD],
+    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * 64],
                                 name='slice_1')
-    decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD], [-1, -1], name='slice_2')
-    # decoderTypes = tflearn.activation(decoderTypes, activation='sigmoid')
+    decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * 64],
+                            [-1, -1], name='slice_2')
 
     decoderStructure = tf.reshape(decoderStructure, [-1, DECODER_WIDTH, DECODER_WIDTH,
-                                                     NUM_FILTERS_THIRD], name='reshape')
-
-    # Decoder's convolution and up-sampling process.
-    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
-    decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
-                                       strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_1')
-
-    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
-    decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
-                                       strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_2')
+                                                     64], name='reshape')
+    """decoderStructure = tf.keras.layers.Conv2DTranspose(filters=NUM_FILTERS_SECOND, kernel_size=FILTER_STRIDES_SECOND,
+                                                       strides=FILTER_STRIDES_SECOND, padding='same',
+                                                       activation=ALL_OTHER_ACTIVATIONS)
+    decoderStructure = tf.keras.layers.Conv2DTranspose(filters=NUM_FILTERS_FIRST, kernel_size=FILTER_SIZE_FIRST,
+                                                       strides=FILTER_STRIDES_FIRST, padding='same',
+                                                       activation=ALL_OTHER_ACTIVATIONS)
+    decoderStructure = tf.keras.layers.Conv2DTranspose(filters=NUM_FILTERS_FIRST, kernel_size=FILTER_SIZE_FIRST,
+                                                       strides=FILTER_STRIDES_FIRST, padding='same',
+                                                       activation=ALL_OTHER_ACTIVATIONS)"""
+    """decoderStructure = tflearn.conv_2d_transpose(decoderStructure, NUM_FILTERS_THIRD, 2,
+                                                 output_shape=[8, 8],
+                                                 strides=2, activation=ALL_OTHER_ACTIVATIONS,
+                                                 scope='decoder_conv_0')"""
+    decoderStructure = tflearn.conv_2d_transpose(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
+                                                 output_shape=[16, 16],
+                                                 strides=FILTER_STRIDES_SECOND, activation=ALL_OTHER_ACTIVATIONS,
+                                                 scope='decoder_conv_1')
+    # decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+    decoderStructure = tflearn.conv_2d_transpose(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
+                                                 output_shape=[32, 32],
+                                                 strides=FILTER_STRIDES_FIRST, activation=ALL_OTHER_ACTIVATIONS,
+                                                 scope='decoder_conv_2')
 
     # decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
     # https://www.tensorflow.org/tutorials/generative/cvae, they use this last layer to return to the original
-    decoderStructure = tflearn.conv_2d(decoderStructure, 3, 2, strides=1, activation=ALL_OTHER_ACTIVATIONS,
-                                       scope='decoder_conv_3')
-    # decoderStructure = tflearn.max_pool_2d(decoderStructure, 2, strides=2)
-    print("decoder structure size is*****: " + str(decoderStructure))
-    # decoderStructure = tflearn.dropout(decoderStructure, 0.95)
+    decoderStructure = tflearn.conv_2d_transpose(decoderStructure, 3, 2, output_shape=[32, 32],
+                                                 strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_3')
 
     decoderStructure = tflearn.flatten(decoderStructure)
     # We map the predicted pixels to the valid pixels inside the hashmap.
@@ -176,7 +179,7 @@ def get_network():
     # network = tf.concat([decoderStructure, decoderTypes], 1)
     network = tflearn.flatten(network)
     network = tflearn.activation(network, activation=LAST_ACTIVATION)
-    network = tf.clip_by_value(network, -0.999, 0.9999)
+    network = tf.clip_by_value(network, -0.999, 0.99999)
     # network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation=LAST_ACTIVATION)
     return network
 
@@ -186,14 +189,14 @@ def vae_loss(y_pred, y_true):
     # https://github.com/tflearn/tflearn/issues/72
     global glob_z_mean
     global glob_z_std
-    glob_kld_weight = 0.90
+    glob_kld_weight = 1.0
     encode_decode_weight = 1.0
     # Reconstruction loss
     # But this is BINARY cross entropy, right?
     # https://peltarion.com/knowledge-center/documentation/
     # modeling-view/build-an-ai-model/loss-functions/binary-crossentropy
-    encode_decode_loss = y_true * tf.math.log(1e-7 + y_pred) \
-                         + (1 - y_true) * tf.math.log(1e-7 + 1 - y_pred)
+    encode_decode_loss = y_true * tf.math.log(1e-8 + y_pred) \
+                         + (1 - y_true) * tf.math.log(1e-8 + 1 - y_pred)
 
     # encode_decode_loss_types = tf.slice(tf.abs(y_pred+y_true), [0, original_dim], [-1, -1])  # to check
 
@@ -236,7 +239,7 @@ def get_generative_network(in_trained_model):
 
     # decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
     # https://www.tensorflow.org/tutorials/generative/cvae, they use this last layer to return to the original
-    decoderStructure = tflearn.conv_2d(decoderStructure, 3, 2, strides=1, activation=ALL_OTHER_ACTIVATIONS,
+    decoderStructure = tflearn.conv_2d(decoderStructure, 3, 1, strides=1, activation=ALL_OTHER_ACTIVATIONS,
                                        scope='decoder_conv_3', reuse=True)
 
     decoderStructure = tflearn.flatten(decoderStructure)
@@ -827,8 +830,6 @@ def hashmap_test(input_valid_pixels):
         print(sess.run(out))
         #
         print("Hashmap ready with the pixels")
-
-
 
 
 """# Define VAE Loss

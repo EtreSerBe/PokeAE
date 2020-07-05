@@ -35,18 +35,9 @@ network_instance = utilities.get_network()
 predict_full_dataset = True
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
-# V5 IS THE SAFE ONE, V6 IS CHANGING VAE_LOSS
-# V7 got to 0.85 but has the KL divergence weight reduced, so it's not the safest haha.
-# V9 has 0.05 in KL_divergence weight now. But it reached 0.90 R2! V10 to 0.91
-# V11 is trying to recover KL_Divergence cost to 1.0, starting with 0.15, it went from 0.91 to 0.90
-# with 0.2 went from 0.9 to 0.89
-# V11 didn't survive going back to 1.0 KL_Divergence cost, it has only 0.84 R2.
-# V12 Was the best after returning to 1.0 KL_divergence and it has around 0.83 R2.
-# The ones with sigmoid instead of relu don't perform as well.
-# I'm moving to train with pokemon over with both V10 and V12, see how it goes.
-# In the generative aspect, V12 proved WAY better than V10 over anime faces. So, pokemon training on V12 first.
-loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_anime_faces_V12_Poke4')
-final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_anime_faces_V12_Poke4')
+# V3 started when batch size was 9
+loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_V3')
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_V3')
 save_images = False
 
 network_instance = tflearn.regression(network_instance,
@@ -65,14 +56,14 @@ model_save_name = "saved_models/" + final_model_name
 reconstructed_pixels = []
 reconstructed_types = []
 
-for lap in range(0, 3):
+for lap in range(0, 5):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=3,
+              n_epoch=5,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=16,
+              batch_size=64,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.

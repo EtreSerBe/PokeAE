@@ -10,8 +10,8 @@ import matplotlib.colors
 
 import pokedataset32_vae_functions as utilities
 
-# current_dataset = 'pokedataset'
-current_dataset = 'anime_faces_'
+current_dataset = 'pokedataset'
+# current_dataset = 'anime_faces_'
 
 # X and Y are not used in this file.
 X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
@@ -40,10 +40,10 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jun_11_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_512_num_filters_512_512_decoder_width_8_2by2.tflearn")
+model.load("saved_models/model_Jun_16_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_64_num_filters_512_128_decoder_width_8_V3.tflearn")
 
-predict_full_dataset = False
+predict_full_dataset = True
 if predict_full_dataset:
     predicted_X = expanded_full_X_HSV
     predicted_Y = Y_full_RGB
@@ -58,7 +58,7 @@ new_types_array = utilities.generate_all_one_type(len(predicted_X),
                                                   in_type=poke_type_1, in_second_type=poke_type_2)
 new_types_array = np.reshape(np.asarray(new_types_array), newshape=[new_types_array.shape[0],
                                                                     utilities.pokemon_types_dim])
-new_types_array = new_types_array * 0.50
+new_types_array = new_types_array * 10.50
 # new_types_array = new_types_array + Y_full_HSV
 if predict_full_dataset:
     expanded_fake_X = np.append(X_full_HSV, new_types_array, axis=1)
