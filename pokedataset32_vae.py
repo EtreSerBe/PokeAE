@@ -34,8 +34,8 @@ import pokedataset32_vae_functions as utilities
 from PIL import Image
 import colorsys
 
-current_dataset = 'pokedataset'
-# current_dataset = 'anime_faces_'
+# current_dataset = 'pokedataset'
+current_dataset = 'anime_faces_'
 
 X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
 
@@ -67,10 +67,10 @@ print("expanded Xs and Ys ready")
 # utilities.initialize_session()
 # current_session = utilities.get_session()
 
-predict_full_dataset = True
+predict_full_dataset = False
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
-final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='')
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_anime_faces')
 
 # I put the network's definition in the pokedataset32_vae_functions.py file, to unify it with the load model.
 network_instance = utilities.get_network()
@@ -97,7 +97,7 @@ with strategy.scope():
     print("Preparing model to fit.")
 
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=50,
+              n_epoch=5,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,

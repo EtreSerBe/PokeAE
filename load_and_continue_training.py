@@ -42,11 +42,11 @@ save_images = False
 
 network_instance = tflearn.regression(network_instance,
                                       optimizer=optimizer_name,
-                                      # optimizer='rmsprop',
+                                      # optimizer='rmsp,
                                       metric='R2',
                                       loss=utilities.vae_loss,
                                       # loss=utilities.vae_loss_abs_error,
-                                      learning_rate=0.0001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.00001)  # adagrad? #adadelta #nesterov did good,
 
 model = tflearn.DNN(network_instance)
 print("LOADING MODEL.")
@@ -59,11 +59,11 @@ reconstructed_types = []
 for lap in range(0, 5):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=5,
+              n_epoch=1,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=64,
+              batch_size=32,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.

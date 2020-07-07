@@ -11,6 +11,8 @@ import matplotlib.colors
 type_to_categorical = ['Bug', 'Dark', 'Dragon', 'Electric', 'Fairy', 'Fighting', 'Fire', 'Flying',
                        'Ghost', 'Grass', 'Ground', 'Ice', 'Normal', 'Poison', 'Psychic', 'Rock', 'Steel', 'Water']
 
+
+
 # Params
 image_dimension = 32
 image_color_dimension = 3
@@ -49,6 +51,15 @@ latent_dimension = 64
 EMBEDDED_ACTIVATION = 'linear'
 LAST_ACTIVATION = 'relu'
 ALL_OTHER_ACTIVATIONS = 'leaky_relu'
+
+
+def mean_square_error(in_predicted, in_original):
+    total_error = 0
+    in_predicted = np.asarray(in_predicted)
+    in_original = np.asarray(in_original)
+    squared_error = np.square(in_predicted-in_original).mean(axis=None)
+    print(str(squared_error))
+    return total_error
 
 
 def get_model_descriptive_name(in_optimizer, in_loss, in_version=''):
@@ -195,8 +206,8 @@ def vae_loss(y_pred, y_true):
     # But this is BINARY cross entropy, right?
     # https://peltarion.com/knowledge-center/documentation/
     # modeling-view/build-an-ai-model/loss-functions/binary-crossentropy
-    encode_decode_loss = y_true * tf.math.log(1e-8 + y_pred) \
-                         + (1 - y_true) * tf.math.log(1e-8 + 1 - y_pred)
+    encode_decode_loss = y_true * tf.math.log(1e-9 + y_pred) \
+                         + (1 - y_true) * tf.math.log(1e-9 + 1 - y_pred)
 
     # encode_decode_loss_types = tf.slice(tf.abs(y_pred+y_true), [0, original_dim], [-1, -1])  # to check
 
