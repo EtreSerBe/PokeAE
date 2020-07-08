@@ -13,9 +13,9 @@ from imgaug import augmenters as iaa
 
 # full RGB; full HSV, and train HSV augmented are the indispensable ones.
 # Important parameters for the data set creation. Modifying them will change the final set generated.
-image_format_to_use = "HSV"
-full_dataset = False
-use_augmentation = True
+image_format_to_use = "RGB"
+full_dataset = True
+use_augmentation = False
 use_type_swap = False
 use_two_hot_encoding = True
 
@@ -67,30 +67,48 @@ encoded_type_labels = np.asarray(encoded_type_labels)
 # We just have to put it into the same file as the pixel data and that's it.
 pixel_data = []
 image_list = []
+white_background_image_list = []
 
 # This was important, if not re-sorted, it used a non-numeric order, which was not desired in this case.
 filename_list = glob.glob(source_folder+'*.png')
 filename_list.sort(key=sortKeyFunction)
 
 # Now, the images need to be augmented BEFORE converting it to the HSV color space.
+im_background = Image.new('RGBA', (32, 32), (255, 255, 255, 0))
 for filename in filename_list:
     with Image.open(filename) as image:
         # Note, it is always converted to RBG, to ignore the Alpha channel
         # and because augmentation library (aleju/imgaug) works on RGB color space.
+        im = image.convert('RGBA')
+
+        white_background_image = Image.alpha_composite(im_background, im)
+        white_background_image = white_background_image.convert('RGB')  # We need to drop the alpha channel now.
+        pixel_matrix_wb = np.asarray(white_background_image.getdata())  # Make the Width*Height*Depth matrices
+        pixel_matrix_wb = np.reshape(pixel_matrix_wb, newshape=[32, 32, 3])
+        pixel_matrix_wb = pixel_matrix_wb.astype(dtype=np.uint8)
+        white_background_image_list.append(pixel_matrix_wb)
+
         im = image.convert('RGB')
         pixel_matrix = np.asarray(im.getdata())  # Make the Width*Height*Depth matrices
         pixel_matrix = np.reshape(pixel_matrix, newshape=[32, 32, 3])
         pixel_matrix = pixel_matrix.astype(dtype=np.uint8)
         image_list.append(pixel_matrix)  # Need them all stored in one container for augmentation.
 
+
 if use_augmentation:
     print("total images before augmentation is: " + str(len(image_list)))
     if not full_dataset:
         training_elements = int((len(image_list) / 100) * 85)  # This will give us 15% for testing
         test_images_list = image_list[training_elements:]  # First assign test ones, to avoid losing info.
+        test_images_list.extend(white_background_image_list[training_elements:])
         test_labels_list = encoded_type_labels[training_elements:]
+        test_labels_list = np.concatenate((test_labels_list, test_labels_list), axis=0)
+
         image_list = image_list[0:training_elements]
         encoded_type_labels = encoded_type_labels[0:training_elements]
+        image_list.extend(white_background_image_list[0:training_elements])
+        # We need it to be twice given black + white backgrounds.
+        encoded_type_labels = np.concatenate((encoded_type_labels, encoded_type_labels), axis=0)
 
         print("getting test data augmented.")
         test_pixel_data, test_label_data = utilities.image_augmentation(test_images_list,
@@ -114,6 +132,8 @@ if use_augmentation:
                                                           )
     print("data augmentation successful.")
 else:  # If no augmentation will be applied.
+    image_list.extend(white_background_image_list)
+    encoded_type_labels = np.concatenate((encoded_type_labels, encoded_type_labels), axis=0)
     pixel_data = image_list  # Only pass the variables to the correct names.
     label_data = encoded_type_labels
 

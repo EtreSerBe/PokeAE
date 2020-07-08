@@ -28,7 +28,7 @@ global glob_session
 
 # Number of filters in Autoencoder's order.
 NUM_FILTERS_FIRST = 512
-NUM_FILTERS_SECOND = 512
+NUM_FILTERS_SECOND = 1024
 # NUM_FILTERS_THIRD = 2048  # NUM_FILTERS_SECOND
 # Filter sizes
 FILTER_SIZE_FIRST = 2  # Filter sizes 5 seem to perform better than 3 or 7, at least with 8-8 filters.
@@ -45,7 +45,7 @@ EMBEDDED_VECTOR_TOTAL = EMBEDDED_VECTOR_SIZE * image_color_dimension
 # FULLY_CONNECTED_1_UNITS = 192  # 468 was great # 228  # with 256 instead of 512 it gets stuck at 0.07, not 0.03
 # FULLY_CONNECTED_2_UNITS = 168
 # FULLY_CONNECTED_3_UNITS = 128
-latent_dimension = 64
+latent_dimension = 128
 
 # num_types_fully_connected = 64
 EMBEDDED_ACTIVATION = 'linear'
@@ -121,20 +121,20 @@ def get_network():
     # decoder = tflearn.batch_normalization(decoder)
     # decoder = tflearn.fully_connected(z, 64, activation=ALL_OTHER_ACTIVATIONS)
 
-    decoder = tflearn.fully_connected(z, DECODER_WIDTH * DECODER_WIDTH * 64 + pokemon_types_dim,
+    decoder = tflearn.fully_connected(z, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_SECOND + pokemon_types_dim,
                                       activation=ALL_OTHER_ACTIVATIONS, scope='decoder_fc_1')
 
     """decoder = tf.concat([decoder, pokemonTypes], 1)
     decoder_custom_layer_instance = PixelPlusTypesLayer(num_outputs=EMBEDDED_VECTOR_TOTAL)
     decoderStructure = decoder_custom_layer_instance(decoder)"""
 
-    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * 64],
+    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_SECOND],
                                 name='slice_1')
-    decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * 64],
+    decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_SECOND],
                             [-1, -1], name='slice_2')
 
     decoderStructure = tf.reshape(decoderStructure, [-1, DECODER_WIDTH, DECODER_WIDTH,
-                                                     64], name='reshape')
+                                                     NUM_FILTERS_SECOND], name='reshape')
     """decoderStructure = tf.keras.layers.Conv2DTranspose(filters=NUM_FILTERS_SECOND, kernel_size=FILTER_STRIDES_SECOND,
                                                        strides=FILTER_STRIDES_SECOND, padding='same',
                                                        activation=ALL_OTHER_ACTIVATIONS)

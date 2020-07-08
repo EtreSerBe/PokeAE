@@ -56,14 +56,14 @@ model_save_name = "saved_models/" + final_model_name
 reconstructed_pixels = []
 reconstructed_types = []
 
-for lap in range(0, 5):
+for lap in range(0, 1):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=1,
+              n_epoch=40,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=32,
+              batch_size=64,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.
