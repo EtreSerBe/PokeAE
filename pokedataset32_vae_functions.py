@@ -110,16 +110,10 @@ def get_network():
     global glob_z_std
     glob_z_mean = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION)
     glob_z_std = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION)
-    #
-
     # Sampler: Normal (gaussian) random distribution
     eps = tf.random_normal(tf.shape(glob_z_std), dtype=tf.float32, mean=0.0, stddev=1.0,
                            name='epsilon')  # + 0.00001
     z = glob_z_mean + tf.exp(glob_z_std / 2.0) * eps
-
-    # decoder = tflearn.fully_connected(z, FULLY_CONNECTED_1_UNITS, activation=ALL_OTHER_ACTIVATIONS)
-    # decoder = tflearn.batch_normalization(decoder)
-    # decoder = tflearn.fully_connected(z, 64, activation=ALL_OTHER_ACTIVATIONS)
 
     decoder = tflearn.fully_connected(z, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_SECOND + pokemon_types_dim,
                                       activation=ALL_OTHER_ACTIVATIONS, scope='decoder_fc_1')
@@ -152,20 +146,18 @@ def get_network():
                                                  output_shape=[16, 16],
                                                  strides=FILTER_STRIDES_SECOND, activation=ALL_OTHER_ACTIVATIONS,
                                                  scope='decoder_conv_1')
-    # decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
     decoderStructure = tflearn.conv_2d_transpose(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
                                                  output_shape=[32, 32],
                                                  strides=FILTER_STRIDES_FIRST, activation=ALL_OTHER_ACTIVATIONS,
                                                  scope='decoder_conv_2')
-
-    # decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
     # https://www.tensorflow.org/tutorials/generative/cvae, they use this last layer to return to the original
     decoderStructure = tflearn.conv_2d_transpose(decoderStructure, 3, 2, output_shape=[32, 32],
                                                  strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_3')
-
     decoderStructure = tflearn.flatten(decoderStructure)
+
+    """
     # We map the predicted pixels to the valid pixels inside the hashmap.
-    """hashed_pixels = convert_pixel_batch_to_hash(decoderStructure)
+    hashed_pixels = convert_pixel_batch_to_hash(decoderStructure)
     print("Hashed pixels are: " + str(hashed_pixels))
     global glob_valid_pixels_table
     global glob_unique_keys
@@ -191,7 +183,6 @@ def get_network():
     network = tflearn.flatten(network)
     network = tflearn.activation(network, activation=LAST_ACTIVATION)
     network = tf.clip_by_value(network, -0.999, 0.99999)
-    # network = tflearn.fully_connected(network, original_dim + pokemon_types_dim, activation=LAST_ACTIVATION)
     return network
 
 
@@ -230,33 +221,33 @@ def vae_loss(y_pred, y_true):
 def get_generative_network(in_trained_model):
     input_noise = tflearn.input_data(shape=[None, latent_dimension], name='input_noise')
     decoder = tflearn.fully_connected(input_noise,
-                                      DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD + pokemon_types_dim,
-                                      activation=EMBEDDED_ACTIVATION, scope='decoder_fc_1', reuse=True)
+                                      DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_SECOND + pokemon_types_dim,
+                                      activation=ALL_OTHER_ACTIVATIONS, scope='decoder_fc_1', reuse=True)
 
-    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD],
+    decoderStructure = tf.slice(decoder, [0, 0], [-1, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_SECOND],
                                 name='slice_1')
-    decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_THIRD], [-1, -1], name='slice_2')
+    decoderTypes = tf.slice(decoder, [0, DECODER_WIDTH * DECODER_WIDTH * NUM_FILTERS_SECOND], [-1, -1], name='slice_2')
     decoderStructure = tf.reshape(decoderStructure, [-1, DECODER_WIDTH, DECODER_WIDTH,
-                                                     NUM_FILTERS_THIRD], name='reshape')
+                                                     NUM_FILTERS_SECOND], name='reshape')
 
-    # Decoder's convolution and up-sampling process.
-    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
-    decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
-                                       strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_1', reuse=True)
-
-    decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
-    decoderStructure = tflearn.conv_2d(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
-                                       strides=1, activation=ALL_OTHER_ACTIVATIONS, scope='decoder_conv_2', reuse=True)
-
-    # decoderStructure = tflearn.upsample_2d(decoderStructure, 2)
+    decoderStructure = tflearn.conv_2d_transpose(decoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
+                                                 output_shape=[16, 16],
+                                                 strides=FILTER_STRIDES_SECOND, activation=ALL_OTHER_ACTIVATIONS,
+                                                 scope='decoder_conv_1', reuse=True)
+    decoderStructure = tflearn.conv_2d_transpose(decoderStructure, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
+                                                 output_shape=[32, 32],
+                                                 strides=FILTER_STRIDES_FIRST, activation=ALL_OTHER_ACTIVATIONS,
+                                                 scope='decoder_conv_2', reuse=True)
     # https://www.tensorflow.org/tutorials/generative/cvae, they use this last layer to return to the original
-    decoderStructure = tflearn.conv_2d(decoderStructure, 3, 1, strides=1, activation=ALL_OTHER_ACTIVATIONS,
-                                       scope='decoder_conv_3', reuse=True)
-
+    decoderStructure = tflearn.conv_2d_transpose(decoderStructure, 3, 2, output_shape=[32, 32],
+                                                 strides=1, activation=ALL_OTHER_ACTIVATIONS,
+                                                 scope='decoder_conv_3', reuse=True)
     decoderStructure = tflearn.flatten(decoderStructure)
+
     network = tf.concat([decoderStructure, decoderTypes], 1)
+    network = tflearn.flatten(network)
     network = tflearn.activation(network, activation=LAST_ACTIVATION)
-    network = tf.clip_by_value(network, -0.999, 0.9999)
+    network = tf.clip_by_value(network, -0.999, 0.99999)
     generator_model = tflearn.DNN(network, session=in_trained_model.session)
     return generator_model
 
@@ -307,7 +298,7 @@ class PixelPlusTypesLayer(tf.keras.layers.Layer):
         return output
 
 
-def predict_batches(in_complete_set_to_predict, in_trained_model, in_samples_per_batch=64):
+def predict_batches(in_complete_set_to_predict, in_trained_model, in_samples_per_batch=64, in_input_name=''):
     out_encode_decode_sample = []
     #  = in_samples_per_batch
     number_of_batches = int(len(in_complete_set_to_predict) / in_samples_per_batch)
@@ -315,11 +306,18 @@ def predict_batches(in_complete_set_to_predict, in_trained_model, in_samples_per
           ' number of batches is: ' + str(number_of_batches))
     for i in range(0, number_of_batches):
         current_slice = in_complete_set_to_predict[in_samples_per_batch * i:in_samples_per_batch * (i + 1)]
-        out_encode_decode_sample.extend(in_trained_model.predict(current_slice))
+        if in_input_name != '':
+            out_encode_decode_sample.extend(in_trained_model.predict({in_input_name: current_slice}))
+        else:
+            out_encode_decode_sample.extend(in_trained_model.predict(current_slice))
 
-    current_slice = in_complete_set_to_predict[in_samples_per_batch * number_of_batches:]
-    print('number of samples in last slice is: ' + str(len(current_slice)))
-    out_encode_decode_sample.extend(in_trained_model.predict(current_slice))
+    if int(len(in_complete_set_to_predict) % in_samples_per_batch) != 0:
+        current_slice = in_complete_set_to_predict[in_samples_per_batch * number_of_batches:]
+        print('number of samples in last slice is: ' + str(len(current_slice)))
+        if in_input_name != '':
+            out_encode_decode_sample.extend(in_trained_model.predict({in_input_name: current_slice}))
+        else:
+            out_encode_decode_sample.extend(in_trained_model.predict(current_slice))
     return out_encode_decode_sample
 
 

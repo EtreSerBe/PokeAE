@@ -36,8 +36,8 @@ predict_full_dataset = True
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
 # V3 started when batch size was 9
-loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_V3')
-final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_V3')
+loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_transfer_V4_poke1_slow2')
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_transfer_V4_poke1_slow2')
 save_images = False
 
 network_instance = tflearn.regression(network_instance,
@@ -46,7 +46,7 @@ network_instance = tflearn.regression(network_instance,
                                       metric='R2',
                                       loss=utilities.vae_loss,
                                       # loss=utilities.vae_loss_abs_error,
-                                      learning_rate=0.00001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.000003)  # adagrad? #adadelta #nesterov did good,
 
 model = tflearn.DNN(network_instance)
 print("LOADING MODEL.")
@@ -59,11 +59,11 @@ reconstructed_types = []
 for lap in range(0, 1):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=40,
+              n_epoch=50,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=64,
+              batch_size=128,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.

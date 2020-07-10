@@ -29,8 +29,8 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jun_16_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_64_num_filters_512_128_decoder_width_8_V3.tflearn")
+model.load("saved_models/model_Jul_09_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_transfer_V4_poke3.tflearn")
 
 print("MODEL SUCCESSFULLY LOADED.")
 
@@ -38,13 +38,21 @@ generator_model = utilities.get_generative_network(model)
 print("LOADED GENERATOR MODEL.")
 
 num_samples = utilities.latent_dimension
-mean = 0.50
-std_dev = 1.0
-x_axis = norm.ppf(np.linspace(0., 1., 100))
+mean = 0.00
+std_dev = 1.00
+range_variation = 10
+"""x_axis = norm.ppf(np.linspace(0., 1., 100))
 y_axis = norm.ppf(np.linspace(0., 1., 10))
-one_per_latent = np.diag(np.ones(utilities.latent_dimension))
-input_noise = np.random.normal(mean, std_dev, [num_samples, utilities.latent_dimension])
-# input_noise = input_noise + one_per_latent
+one_per_latent = np.diag(np.ones(utilities.latent_dimension))*10.0"""
+input_noise = np.random.normal(mean, std_dev, [utilities.latent_dimension])
+input_noise_list = []
+for i in range(0, utilities.latent_dimension):
+    # For each sample, make 10 of them
+    for j in range(0, 11):
+        temp_noise = np.copy(input_noise)
+        temp_noise[i] = ((-range_variation) + (j * range_variation/10.0))
+        input_noise_list.append(temp_noise)
+# input_noise = one_per_latent
 """# Add the fake types.
 poke_type_1 = 'Fire'
 poke_type_2 = 'None'
@@ -57,14 +65,17 @@ new_types_array = new_types_array * 0.50
 expanded_input_noise = np.append(input_noise, new_types_array, axis=1)"""
 
 # Check how to do it in batches later.
-encode_decode_generated_samples = generator_model.predict({'input_noise': input_noise})
+encode_decode_generated_samples = utilities.predict_batches(input_noise_list, generator_model,
+                                                            in_samples_per_batch=64, in_input_name='input_noise')
+# encode_decode_generated_samples = generator_model.predict({'input_noise': input_noise_list})
 
 reconstructed_pixels_generated, reconstructed_types_generated = \
     utilities.reconstruct_pixels_and_types(encode_decode_generated_samples)
 
 utilities.export_as_atlas(reconstructed_pixels_generated, reconstructed_pixels_generated,
                           name_prefix='GENERATED_SAMPLES_',
-                          name_annotations='_Mean_' + str(mean) + '_stddev_' + str(std_dev))
+                          name_annotations='_Mean_' + str(mean) + '_stddev_' + str(std_dev) +
+                                           '_range_var_' + str(range_variation))
 
 # print('The number of ORIGINAL types correct types were: ')
 # correct_indices = utilities.export_types_csv(Y_full_RGB[0:100], reconstructed_types_generated)
@@ -78,7 +89,6 @@ for i in range(10):
 
 f.show()
 plt.draw()
-# input('Press E to exit')
 plt.waitforbuttonpress()
 
 # This is used to export an image only containing the ones whose types were correctly predicted by the NN.

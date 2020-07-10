@@ -34,8 +34,8 @@ import pokedataset32_vae_functions as utilities
 from PIL import Image
 import colorsys
 
-current_dataset = 'pokedataset'
-# current_dataset = 'anime_faces_'
+# current_dataset = 'pokedataset'
+current_dataset = 'anime_faces_'
 
 X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
 
@@ -70,7 +70,7 @@ print("expanded Xs and Ys ready")
 predict_full_dataset = True
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
-final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='')
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_transfer')
 
 # I put the network's definition in the pokedataset32_vae_functions.py file, to unify it with the load model.
 network_instance = utilities.get_network()
@@ -82,7 +82,7 @@ network_instance = tflearn.regression(network_instance,
                                           # loss='mean_square',
                                           loss=utilities.vae_loss,
                                           # loss=utilities.vae_loss_abs_error,
-                                          learning_rate=0.0001)  # adagrad? #adadelta #nesterov did good,
+                                          learning_rate=0.00001)  # adagrad? #adadelta #nesterov did good,
 model = tflearn.DNN(network_instance)  # , session=current_session)  # , tensorboard_verbose=2)
 strategy = tf.distribute.MirroredStrategy()
 with strategy.scope():
@@ -97,11 +97,11 @@ with strategy.scope():
     print("Preparing model to fit.")
 
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=25,
+              n_epoch=10,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=64,
+              batch_size=128,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),  # We use it for validation for now. But also test.
               run_id='encoder_decoder')
@@ -125,7 +125,7 @@ with strategy.scope():
     reconstructed_pixels, reconstructed_types = utilities.reconstruct_pixels_and_types(encode_decode_sample)
 
     print("Exporting reconstructed pokemon as an image.")
-    utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)  # I have checked that it works perfectly.
+    # utilities.export_as_atlas(X_full_RGB, reconstructed_pixels)  # I have checked that it works perfectly.
     if predict_full_dataset:
         correct_indices = utilities.export_types_csv(Y_full_RGB, reconstructed_types)
     else:

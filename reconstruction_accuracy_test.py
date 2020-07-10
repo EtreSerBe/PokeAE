@@ -29,8 +29,8 @@ test_Y = np.asarray(test_Y)
 X_full_RGB = np.asarray(X_full_RGB)
 
 
-test_X = test_X[0:147]  # We only want half of it.
-test_Y = test_Y[0:147]
+test_X = test_X[0:294]  # We only want half of it.
+test_Y = test_Y[0:294]
 test_Y = test_Y * 0.5
 expanded_test_X = np.append(test_X, test_Y, axis=1)
 
@@ -50,30 +50,30 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_06_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_64_num_filters_512_512_decoder_width_8_V3.tflearn")
+model.load("saved_models/model_Jul_09_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_V3.tflearn")
 
-predict_full_dataset = True
+predict_full_dataset = False
 if predict_full_dataset:
-    predicted_X = expanded_full_X_HSV # expanded_test_X
+    predicted_X = expanded_full_X_HSV
+    predicted_X_pixels = X_full_HSV
+    predicted_Y = Y_full_HSV
+    exporting_RGB = X_full_RGB
+else:
+    predicted_X = expanded_test_X
+    predicted_X_pixels = test_X
     predicted_Y = test_Y
-else:
-    predicted_X = expanded_small_X
-    predicted_Y = small_Y
+    exporting_RGB = np.concatenate((X_full_RGB[827:974], X_full_RGB[1801:]), axis=0)
 
-if predict_full_dataset:
-    exporting_RGB = X_full_RGB  # [827:974]
-else:
-    exporting_RGB = small_X_RGB
 
 print("getting samples to show on screen.")
 encode_decode_sample_original = utilities.predict_batches(predicted_X, model, in_samples_per_batch=64)
 reconstructed_pixels_original, reconstructed_types_original = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_original)
-utilities.mean_square_error(reconstructed_pixels_original, X_full_HSV)
+print("MSE value for the ORIGINAL model, over the whole dataset is: ")
+utilities.mean_square_error(reconstructed_pixels_original, predicted_X_pixels)
 
-
-# Now, unload the normal model so we can load the transfer learning model.
+# Now, we can load the transfer learning model.
 """network_instance_transfer = utilities.get_network()
 
 network_instance_transfer = tflearn.regression(network_instance_transfer,
@@ -81,16 +81,18 @@ network_instance_transfer = tflearn.regression(network_instance_transfer,
                                       metric='R2',
                                       loss=utilities.vae_loss,
                                       learning_rate=0.0001)  # adagrad? #adadelta #nesterov did good,
-model_transfer = tflearn.DNN(network_instance_transfer)
-model_transfer.load("saved_models/model_Jul_06_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_64_num_filters_512_512_decoder_width_8_anime_faces_V2_poke4.tflearn")
-encode_decode_sample_transfer = utilities.predict_batches(predicted_X, model_transfer, in_samples_per_batch=64)
+model_transfer = tflearn.DNN(network_instance_transfer)"""
+model.load("saved_models/model_Jul_09_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_transfer_V4_poke3.tflearn")
+encode_decode_sample_transfer = utilities.predict_batches(predicted_X, model, in_samples_per_batch=64)
 reconstructed_pixels_transfer, reconstructed_types_transfer = \
-    utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer)"""
+    utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer)
+print("MSE value for the TRANSFER Poke3 learning model, over the whole dataset is: ")
+utilities.mean_square_error(reconstructed_pixels_transfer, predicted_X_pixels)
 
 print("Exporting reconstructed pokemon as an image.")
-utilities.export_multi_type_atlas(exporting_RGB, reconstructed_pixels_original, reconstructed_pixels_original,
-                                  name_prefix='_ORIGINAL_')
+utilities.export_multi_type_atlas(exporting_RGB, reconstructed_pixels_original, reconstructed_pixels_transfer,
+                                  name_prefix='_ORIGINAL_VS_TRANSFER_')
 # print('The number of ORIGINAL types correct types were: ')
 # correct_indices = utilities.export_types_csv(predicted_Y, reconstructed_types_original)
 # print('The number of FAKE types correct types were: ')

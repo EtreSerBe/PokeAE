@@ -40,8 +40,8 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_07_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_V3.tflearn")
+model.load("saved_models/model_Jul_09_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_transfer_V4_poke1_slow2.tflearn")
 
 predict_full_dataset = True
 if predict_full_dataset:
@@ -58,7 +58,7 @@ new_types_array = utilities.generate_all_one_type(len(predicted_X),
                                                   in_type=poke_type_1, in_second_type=poke_type_2)
 new_types_array = np.reshape(np.asarray(new_types_array), newshape=[new_types_array.shape[0],
                                                                     utilities.pokemon_types_dim])
-new_types_array = new_types_array * 5.50
+new_types_array = new_types_array * 5.00
 # new_types_array = new_types_array + Y_full_HSV
 if predict_full_dataset:
     expanded_fake_X = np.append(X_full_HSV, new_types_array, axis=1)
