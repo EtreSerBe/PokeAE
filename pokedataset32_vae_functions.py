@@ -252,6 +252,27 @@ def get_generative_network(in_trained_model):
     return generator_model
 
 
+def generate_random_noise(in_width=32, in_height=32, in_num_channels=3):
+    rand_image = np.random.randint(0, 255, size=[in_width*in_height, in_num_channels], dtype=np.uint8)
+    alpha_zeros = np.zeros(shape=[in_width*in_height, 1])
+    alpha_zeros = alpha_zeros.astype(dtype=np.uint8)
+    rand_image = np.concatenate((rand_image[:], alpha_zeros), axis=1)
+    rand_image = np.reshape(rand_image, newshape=[in_width, in_height, in_num_channels+1])
+    rand_im = Image.fromarray(rand_image, 'RGBA')
+    return rand_im
+
+
+# Both parameters are PIL library's objects in RGBA mode. The output is made RGB for this article's purpose.
+# in_foreground_image must be have at least some alpha pixels for this function's results to be noticeable.
+def blend_alpha_images(in_background_image, in_foreground_image):
+    composite_background_image = Image.alpha_composite(in_background_image, in_foreground_image)
+    composite_background_image = composite_background_image.convert('RGB')  # We need to drop the alpha channel now.
+    pixel_matrix = np.asarray(composite_background_image.getdata())  # Make the Width*Height*Depth matrices
+    pixel_matrix = np.reshape(pixel_matrix, newshape=[32, 32, 3])
+    pixel_matrix = pixel_matrix.astype(dtype=np.uint8)
+    return pixel_matrix
+
+
 class PixelPlusTypesLayer(tf.keras.layers.Layer):
     def __init__(self, num_outputs):
         super(PixelPlusTypesLayer, self).__init__()
@@ -302,8 +323,6 @@ def predict_batches(in_complete_set_to_predict, in_trained_model, in_samples_per
     out_encode_decode_sample = []
     #  = in_samples_per_batch
     number_of_batches = int(len(in_complete_set_to_predict) / in_samples_per_batch)
-    print('number of samples is: ' + str(len(in_complete_set_to_predict)) +
-          ' number of batches is: ' + str(number_of_batches))
     for i in range(0, number_of_batches):
         current_slice = in_complete_set_to_predict[in_samples_per_batch * i:in_samples_per_batch * (i + 1)]
         if in_input_name != '':
@@ -313,7 +332,6 @@ def predict_batches(in_complete_set_to_predict, in_trained_model, in_samples_per
 
     if int(len(in_complete_set_to_predict) % in_samples_per_batch) != 0:
         current_slice = in_complete_set_to_predict[in_samples_per_batch * number_of_batches:]
-        print('number of samples in last slice is: ' + str(len(current_slice)))
         if in_input_name != '':
             out_encode_decode_sample.extend(in_trained_model.predict({in_input_name: current_slice}))
         else:
@@ -600,9 +618,9 @@ def image_flip_left_right(in_image_list, in_types_list):
     return out_all_images, out_types
 
 
-def image_augmentation(in_image_list, in_types_list, in_flip_lr=True, in_gamma_contrast=True,
-                       in_multiply_saturation=True, in_multiply_brightness=True,
-                       in_multiply_hue=True, in_gaussian_blur=True):
+def image_augmentation(in_image_list, in_types_list, in_flip_lr=True, in_gamma_contrast=False,
+                       in_multiply_saturation=False, in_multiply_brightness=False,
+                       in_multiply_hue=False, in_gaussian_blur=False):
     out_all_images = []
     out_all_images.extend(in_image_list)
     out_all_types = []

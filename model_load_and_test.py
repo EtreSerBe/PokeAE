@@ -40,8 +40,8 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_09_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_transfer_V4_poke1_slow2.tflearn")
+model.load("saved_models/model_Jul_13_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_transfer_V4_poke3_noise4.tflearn")
 
 predict_full_dataset = True
 if predict_full_dataset:

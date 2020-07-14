@@ -13,11 +13,12 @@ from imgaug import augmenters as iaa
 
 # full RGB; full HSV, and train HSV augmented are the indispensable ones.
 # Important parameters for the data set creation. Modifying them will change the final set generated.
-image_format_to_use = "RGB"
-full_dataset = True
-use_augmentation = False
+image_format_to_use = "HSV"
+full_dataset = False
+use_augmentation = True  # NOTE: Right now, if augmentation is used, the full dataset option should be disabled.
 use_type_swap = False
 use_two_hot_encoding = True
+num_noise_per_pokemon = 2
 
 # This is only used for the Pokemon images with swapped types, which are a special dataset for testing.
 if not use_type_swap:
@@ -68,6 +69,9 @@ encoded_type_labels = np.asarray(encoded_type_labels)
 pixel_data = []
 image_list = []
 white_background_image_list = []
+noise_background_image_list = []
+for i in range(0, num_noise_per_pokemon):
+    noise_background_image_list.append(list())
 
 # This was important, if not re-sorted, it used a non-numeric order, which was not desired in this case.
 filename_list = glob.glob(source_folder+'*.png')
@@ -75,18 +79,20 @@ filename_list.sort(key=sortKeyFunction)
 
 # Now, the images need to be augmented BEFORE converting it to the HSV color space.
 im_background = Image.new('RGBA', (32, 32), (255, 255, 255, 0))
+
 for filename in filename_list:
     with Image.open(filename) as image:
         # Note, it is always converted to RBG, to ignore the Alpha channel
         # and because augmentation library (aleju/imgaug) works on RGB color space.
         im = image.convert('RGBA')
 
-        white_background_image = Image.alpha_composite(im_background, im)
-        white_background_image = white_background_image.convert('RGB')  # We need to drop the alpha channel now.
-        pixel_matrix_wb = np.asarray(white_background_image.getdata())  # Make the Width*Height*Depth matrices
-        pixel_matrix_wb = np.reshape(pixel_matrix_wb, newshape=[32, 32, 3])
-        pixel_matrix_wb = pixel_matrix_wb.astype(dtype=np.uint8)
+        pixel_matrix_wb = utilities.blend_alpha_images(im_background, im)
         white_background_image_list.append(pixel_matrix_wb)
+
+        for i in range(0, num_noise_per_pokemon):
+            im_noise = utilities.generate_random_noise(32, 32, 3)
+            pixel_matrix_noise = utilities.blend_alpha_images(im_noise, im)
+            noise_background_image_list[i].append(pixel_matrix_noise)
 
         im = image.convert('RGB')
         pixel_matrix = np.asarray(im.getdata())  # Make the Width*Height*Depth matrices
@@ -99,6 +105,7 @@ if use_augmentation:
     print("total images before augmentation is: " + str(len(image_list)))
     if not full_dataset:
         training_elements = int((len(image_list) / 100) * 85)  # This will give us 15% for testing
+        num_test_elements = len(image_list) - training_elements
         test_images_list = image_list[training_elements:]  # First assign test ones, to avoid losing info.
         test_images_list.extend(white_background_image_list[training_elements:])
         test_labels_list = encoded_type_labels[training_elements:]
@@ -109,27 +116,39 @@ if use_augmentation:
         image_list.extend(white_background_image_list[0:training_elements])
         # We need it to be twice given black + white backgrounds.
         encoded_type_labels = np.concatenate((encoded_type_labels, encoded_type_labels), axis=0)
+        if num_noise_per_pokemon > 0:
+            test_noisy_images_list = noise_background_image_list[0][training_elements:]
+            test_noisy_labels_list = test_labels_list[0:num_test_elements]
+            for i in range(1, num_noise_per_pokemon):
+                test_noisy_images_list.extend(noise_background_image_list[i][training_elements:])
+                # One per noisy poke lap.
+                test_noisy_labels_list = np.concatenate((test_noisy_labels_list,
+                                                         test_noisy_labels_list[0:num_test_elements]), axis=0)
+            train_noisy_images_list = noise_background_image_list[0][0:training_elements]
+            train_noisy_labels_list = encoded_type_labels[0:training_elements]
+            for i in range(1, num_noise_per_pokemon):
+                train_noisy_images_list.extend(noise_background_image_list[i][0:training_elements])
+                train_noisy_labels_list = np.concatenate((train_noisy_labels_list,
+                                                          train_noisy_labels_list[0:training_elements]), axis=0)
+
+            test_noisy_images_data, test_noisy_labels_data = utilities.image_augmentation(test_noisy_images_list,
+                                                                                          test_noisy_labels_list)
+            train_noisy_images_data, train_noisy_labels_data = utilities.image_augmentation(train_noisy_images_list,
+                                                                                            train_noisy_labels_list)
+            test_pixel_noisy_data = np.asarray(test_noisy_images_data).astype(dtype=np.dtype('Float32'))
+            train_pixel_noisy_data = np.asarray(train_noisy_images_data).astype(dtype=np.dtype('Float32'))
+            test_pixel_noisy_data = utilities.convert_to_format(test_pixel_noisy_data, image_format_to_use)
+            train_pixel_noisy_data = utilities.convert_to_format(train_pixel_noisy_data, image_format_to_use)
 
         print("getting test data augmented.")
         test_pixel_data, test_label_data = utilities.image_augmentation(test_images_list,
-                                                                        test_labels_list, in_flip_lr=True,
-                                                                        in_gamma_contrast=False,
-                                                                        in_multiply_saturation=False,
-                                                                        in_multiply_brightness=False,
-                                                                        in_multiply_hue=False,
-                                                                        in_gaussian_blur=False
-                                                                        )
+                                                                        test_labels_list, in_flip_lr=True)
         test_pixel_data = np.asarray(test_pixel_data).astype(dtype=np.dtype('Float32'))  # Float64 by default.
         test_pixel_data = utilities.convert_to_format(test_pixel_data, image_format_to_use)
 
     print("getting non-test data augmented.")
     # Now, do the augmentation for the non-test images. If no split was specified, this will contain all images.
-    pixel_data, label_data = utilities.image_augmentation(image_list, encoded_type_labels, in_flip_lr=True,
-                                                          in_gamma_contrast=False,
-                                                          in_multiply_saturation=False,
-                                                          in_multiply_brightness=False,
-                                                          in_multiply_hue=False, in_gaussian_blur=False
-                                                          )
+    pixel_data, label_data = utilities.image_augmentation(image_list, encoded_type_labels, in_flip_lr=True)
     print("data augmentation successful.")
 else:  # If no augmentation will be applied.
     image_list.extend(white_background_image_list)
@@ -165,3 +184,14 @@ else:  # If it has train and test separation.
     h5f.create_dataset('pokedataset32_X_test', data=test_pixel_data)
     h5f.create_dataset('pokedataset32_Y_test', data=test_label_data)
     h5f.close()
+    if num_noise_per_pokemon > 0:
+        h5f_NOISE = h5py.File('pokedataset32_train_NOISE_' + image_format_to_use +
+                              ('_Two_Hot_Encoded' if use_two_hot_encoding else '') +
+                              ('_Augmented' if use_augmentation else '') +
+                              ('_Type_Swapped' if use_type_swap else '') + '.h5', 'w')
+        # These four lines below are for the data split into train and test portions.
+        h5f_NOISE.create_dataset('pokedataset32_X', data=train_pixel_noisy_data)
+        h5f_NOISE.create_dataset('pokedataset32_Y', data=train_noisy_labels_data)
+        h5f_NOISE.create_dataset('pokedataset32_X_test', data=test_pixel_noisy_data)
+        h5f_NOISE.create_dataset('pokedataset32_Y_test', data=test_noisy_labels_data)
+        h5f_NOISE.close()

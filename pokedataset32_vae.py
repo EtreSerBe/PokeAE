@@ -34,15 +34,26 @@ import pokedataset32_vae_functions as utilities
 from PIL import Image
 import colorsys
 
-# current_dataset = 'pokedataset'
-current_dataset = 'anime_faces_'
+current_dataset = 'pokedataset'
+# current_dataset = 'anime_faces_'
 
 X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
 
+X_noisy_HSV, Y_noisy_HSV = \
+    utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5")
+
+X_noisy_HSV_test, Y_noisy_HSV_test = \
+    utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5",
+                                              in_dataset_x_label="pokedataset32_X_test",
+                                              in_dataset_y_label="pokedataset32_Y_test")
+
 # NOTE: Use these lines to output a visualization of the data sets, if you think
 # there is any problem with them. But I've checked and they seem correct.
-# X = utilities.convert_to_format(X[:], 'HSV_TO_RGB')
-# utilities.export_as_atlas(X, X)
+X_noisy_HSV = utilities.convert_to_format(X_noisy_HSV[:], 'HSV_TO_RGB')
+utilities.export_as_atlas(X_noisy_HSV, X_noisy_HSV, name_prefix='NOISY_TRAIN_ATLAS')
+X_noisy_HSV_test = utilities.convert_to_format(X_noisy_HSV_test[:], 'HSV_TO_RGB')
+utilities.export_as_atlas(X_noisy_HSV_test, X_noisy_HSV_test, name_prefix='NOISY_TEST_ATLAS')
+
 Y = Y * 0.5
 test_Y = test_Y * 0.5
 Y_full_HSV = Y_full_HSV * 0.5  # np.clip(Y_full_HSV, 0.0, 1.0)

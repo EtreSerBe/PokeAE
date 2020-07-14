@@ -7,10 +7,25 @@ import matplotlib.colors
 import pokedataset32_vae_functions as utilities
 import matplotlib.pyplot as plt
 
+use_noise = False
 current_dataset = 'pokedataset'
 # current_dataset = 'anime_faces_'
 
 X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
+
+if use_noise:
+    X_noisy_HSV, Y_noisy_HSV = \
+        utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5")
+
+    X_noisy_HSV_test, Y_noisy_HSV_test = \
+        utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5",
+                                                  in_dataset_x_label="pokedataset32_X_test",
+                                                  in_dataset_y_label="pokedataset32_Y_test")
+
+    X_plus_noise = np.concatenate((X, X_noisy_HSV), axis=0)
+    Y_plus_noise = np.concatenate((Y, Y_noisy_HSV), axis=0)
+    Y_plus_noise = Y_plus_noise * 0.5
+
 
 Y = Y * 0.5
 test_Y = test_Y * 0.5
@@ -24,7 +39,10 @@ len_X_div_2 = int(len(X)/2)
 small_X_RGB = np.concatenate((X_full_RGB[0:200], X_full_RGB[len_X_div_2:len_X_div_2+200]), axis=0)
 
 # Now we add the extra info from the Ys.
-expanded_X = np.append(X, Y, axis=1)  # It already contains the Flip-left-right augmentation.
+if use_noise:
+    expanded_X = np.append(X_plus_noise, Y_plus_noise, axis=1)  # It already contains the Flip-left-right augmentation.
+else:
+    expanded_X = np.append(X, Y, axis=1)  # It already contains the Flip-left-right augmentation.
 expanded_test_X = np.append(test_X, test_Y, axis=1)
 expanded_full_X_HSV = np.append(X_full_HSV, Y_full_HSV, axis=1)  # Used to print everyone in the image.
 
@@ -36,8 +54,10 @@ predict_full_dataset = True
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
 # V3 started when batch size was 9
-loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_transfer_V4_poke1_slow2')
-final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_transfer_V4_poke1_slow2')
+loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name,
+                                                         in_version='_transfer_V4_poke3_noise4')
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name,
+                                                        in_version='_transfer_V4_poke3_noise4')
 save_images = False
 
 network_instance = tflearn.regression(network_instance,
@@ -46,7 +66,7 @@ network_instance = tflearn.regression(network_instance,
                                       metric='R2',
                                       loss=utilities.vae_loss,
                                       # loss=utilities.vae_loss_abs_error,
-                                      learning_rate=0.000003)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.0000001)  # adagrad? #adadelta #nesterov did good,
 
 model = tflearn.DNN(network_instance)
 print("LOADING MODEL.")
@@ -59,11 +79,11 @@ reconstructed_types = []
 for lap in range(0, 1):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=50,
+              n_epoch=10,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=128,
+              batch_size=64,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.
@@ -72,12 +92,10 @@ for lap in range(0, 1):
     # Now we print how it has progressed to see if we want to keep these changes.
     # print("getting samples to show on screen.")
     if predict_full_dataset:
-        predicted_X = X
         predicted_Y = Y_full_RGB
         exporting_RGB = X_full_RGB
         encode_decode_sample = utilities.predict_batches(expanded_full_X_HSV, model, in_samples_per_batch=64)
     else:
-        predicted_X = small_X
         predicted_Y = small_Y
         exporting_RGB = small_X_RGB
         encode_decode_sample = utilities.predict_batches(expanded_small_X, model, in_samples_per_batch=64)
