@@ -47,83 +47,74 @@ network_instance = tflearn.regression(network_instance,
 model = tflearn.DNN(network_instance)
 
 print("LOADING MODEL.")
-
+first_model_name = "_V3"
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_13_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_transfer_V4_poke3_noise4.tflearn")
-
-predict_full_dataset = True
-if predict_full_dataset:
-    expanded_full_predicted_X = expanded_full_X_HSV
-
-    predicted_X_pixels = X_full_HSV
-    predicted_Y = Y_full_HSV
-    exporting_RGB = X_full_RGB
-else:
-    predicted_X = expanded_test_X
-    predicted_X_pixels = test_X
-    predicted_Y = test_Y
+model.load("saved_models/model_Jul_14_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8" + first_model_name + ".tflearn")
 
 print("getting samples to show on screen.")
 encode_decode_sample_original = utilities.predict_batches(expanded_full_X_HSV, model, in_samples_per_batch=64)
 reconstructed_pixels_original, reconstructed_types_original = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_original)
-print("MSE value for the ORIGINAL model, over the WHOLE dataset is: ")
+print("MSE value for the " + first_model_name + " model, over the WHOLE dataset is: ")
 utilities.mean_square_error(reconstructed_pixels_original, X_full_HSV)
+utilities.ssim_comparison(reconstructed_pixels_original, X_full_HSV)
 
 # Now, training only:
 encode_decode_sample_original_train = utilities.predict_batches(expanded_X, model, in_samples_per_batch=64)
 reconstructed_pixels_original_train, reconstructed_types_original_train = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_original_train)
-print("MSE value for the ORIGINAL model, over the TRAINING dataset is: ")
+print("MSE value for the " + first_model_name + " model, over the TRAINING dataset is: ")
 utilities.mean_square_error(reconstructed_pixels_original_train, X)
 
 # Now, testing data only:
 encode_decode_sample_original_test = utilities.predict_batches(expanded_test_X, model, in_samples_per_batch=64)
 reconstructed_pixels_original_test, reconstructed_types_original_test = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_original_test)
-print("MSE value for the ORIGINAL model, over the TESTING dataset is: ")
+print("MSE value for the " + first_model_name + " model, over the TESTING dataset is: ")
 utilities.mean_square_error(reconstructed_pixels_original_test, test_X)
 
 ###############################
 
 # Now, we can load the transfer learning model.
-model.load("saved_models/model_Jul_13_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_transfer_V4_poke3.tflearn")
+second_model_name = "_V3_noise4"
+model.load("saved_models/model_Jul_14_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8" + second_model_name + ".tflearn")
 
 # Both training and testing data together.
 encode_decode_sample_transfer = utilities.predict_batches(expanded_full_X_HSV, model, in_samples_per_batch=64)
 reconstructed_pixels_transfer, reconstructed_types_transfer = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer)
-print("MSE value for the TRANSFER Poke3 learning model, over the WHOLE dataset is: ")
+print("MSE value for the " + second_model_name + " learning model, over the WHOLE dataset is: ")
 utilities.mean_square_error(reconstructed_pixels_transfer, X_full_HSV)
+utilities.ssim_comparison(reconstructed_pixels_transfer, X_full_HSV)
 
 # Training data only.
 encode_decode_sample_transfer_train = utilities.predict_batches(expanded_X, model, in_samples_per_batch=64)
 reconstructed_pixels_transfer_train, reconstructed_types_transfer_train = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer_train)
-print("MSE value for the TRANSFER Poke3 learning model, over the TRAINING dataset is: ")
+print("MSE value for the " + second_model_name + " learning model, over the TRAINING dataset is: ")
 utilities.mean_square_error(reconstructed_pixels_transfer_train, X)
 
 # Testing data only.
 encode_decode_sample_transfer_test = utilities.predict_batches(expanded_test_X, model, in_samples_per_batch=64)
 reconstructed_pixels_transfer_test, reconstructed_types_transfer_test = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer_test)
-print("MSE value for the TRANSFER Poke3 learning model, over the TESTING dataset is: ")
+print("MSE value for the " + second_model_name + " learning model, over the TESTING dataset is: ")
 utilities.mean_square_error(reconstructed_pixels_transfer_test, test_X)
 
 # ATLAS EXPORTATION ####################################################
 
 print("Exporting both TRAINING and TESTING reconstructed pokemon as an image.")
 utilities.export_multi_type_atlas(X_full_RGB, reconstructed_pixels_original, reconstructed_pixels_transfer,
-                                  name_prefix='_POKE3NOISE4_VS_POKE3_')
+                                  name_prefix='_' + first_model_name + '_VS_' + second_model_name + '_')
 
 # Now, to export the testing samples only.
 exporting_RGB = np.concatenate((X_full_RGB[827:974], X_full_RGB[1801:]), axis=0)
 print("Exporting TESTING-ONLY reconstructed pokemon as an image.")
 utilities.export_multi_type_atlas(exporting_RGB, reconstructed_pixels_original_test, reconstructed_pixels_transfer_test,
-                                  name_prefix='_TESTONLY_POKE3NOISE4_VS_POKE3_')
+                                  name_prefix='_TESTONLY_' + first_model_name + '_VS_' + second_model_name + '_')
 # print('The number of ORIGINAL types correct types were: ')
 # correct_indices = utilities.export_types_csv(predicted_Y, reconstructed_types_original)
 # print('The number of FAKE types correct types were: ')

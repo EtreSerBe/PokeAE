@@ -7,6 +7,7 @@ import tflearn
 import h5py
 import imgaug.augmenters as iaa
 import matplotlib.colors
+import sys
 
 type_to_categorical = ['Bug', 'Dark', 'Dragon', 'Electric', 'Fairy', 'Fighting', 'Fire', 'Flying',
                        'Ghost', 'Grass', 'Ground', 'Ice', 'Normal', 'Poison', 'Psychic', 'Rock', 'Steel', 'Water']
@@ -60,6 +61,26 @@ def mean_square_error(in_predicted, in_original):
     squared_error = np.square(in_predicted-in_original).mean(axis=None)
     print(str(squared_error))
     return total_error
+
+
+def ssim_comparison(in_predicted, in_original):
+    sess = tf.compat.v1.Session()
+    with sess.as_default():
+        in_predicted = np.asarray(in_predicted)
+        in_original = np.asarray(in_original)
+        in_predicted = tf.reshape(tf.convert_to_tensor(in_predicted), shape=[-1, 1024, 3])
+        in_original = tf.reshape(tf.convert_to_tensor(in_original), shape=[-1, 1024, 3])
+        in_predicted_grayscale = tf.image.rgb_to_grayscale(tf.image.hsv_to_rgb(in_predicted))
+        in_original_grayscale = tf.image.rgb_to_grayscale(tf.image.hsv_to_rgb(in_original))
+        out_ssim_scores = tf.image.ssim(in_predicted_grayscale, in_original_grayscale, max_val=1.0)
+        # It should contain a value in [-1, 1] for each of the images compared. So we average it.
+        out_ssim_average = tf.reduce_mean(out_ssim_scores)
+        # Now we print it.
+        print_op = tf.print(out_ssim_average, output_stream=sys.stdout)
+        tensor = tf.range(10)
+        # print_op = tf.print("tensors:", tensor, {2: tensor * 2}, output_stream=sys.stdout)
+        sess.run(print_op)
+
 
 
 def get_model_descriptive_name(in_optimizer, in_loss, in_version=''):
