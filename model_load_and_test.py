@@ -10,11 +10,36 @@ import matplotlib.colors
 
 import pokedataset32_vae_functions as utilities
 
-current_dataset = 'pokedataset'
-# current_dataset = 'anime_faces_'
+# current_dataset = 'pokedataset'
+current_dataset = 'anime_faces_'
 
-# X and Y are not used in this file.
-X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
+# X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
+use_anime_with_types = True
+if not use_anime_with_types or current_dataset == 'pokedataset':
+    X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(
+        current_dataset)
+else:
+    X, Y = utilities.prepare_dataset_for_input_layer(
+        'anime_faces_32_train_HSV_Two_Hot_Encoded_Augmented_With_Types.h5', in_dataset_x_label='anime_faces_32_X',
+        in_dataset_y_label='anime_faces_32_Y')
+    test_X, test_Y = utilities.prepare_dataset_for_input_layer(
+        'anime_faces_32_train_HSV_Two_Hot_Encoded_Augmented_With_Types.h5', in_dataset_x_label='anime_faces_32_X_test',
+        in_dataset_y_label='anime_faces_32_Y_test')
+    X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer(
+        'anime_faces_32_full_RGB_Two_Hot_Encoded.h5', in_dataset_x_label='anime_faces_32_X',
+        in_dataset_y_label='anime_faces_32_Y')
+
+    X_first_half = X[0:int(len(X) / 2)]
+    Y_first_half = Y[0:int(len(Y) / 2)]
+    test_X_first_half = test_X[0:int(len(test_X) / 2)]
+    test_Y_first_half = test_Y[0:int(len(test_Y) / 2)]
+    """X_second_half = X[int(len(X) / 2):]
+    Y_second_half = Y[int(len(Y) / 2):]
+    test_X_second_half = test_X[int(len(test_X) / 2):]
+    test_Y_second_half = test_Y[int(len(test_Y) / 2):]"""
+    X_full_HSV = np.concatenate((X_first_half, test_X_first_half), axis=0)
+    Y_full_HSV = np.concatenate((Y_first_half, test_Y_first_half), axis=0)
+    Y_full_RGB = Y_full_HSV  # Replace it, since RGB was not saved with types.
 
 
 Y_full_HSV = Y_full_HSV * 0.50
@@ -40,10 +65,10 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_14_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_V3_noise4.tflearn")
+model.load("saved_models/model_Jul_17_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_anime_labels.tflearn")
 
-predict_full_dataset = True
+predict_full_dataset = False
 if predict_full_dataset:
     predicted_X = expanded_full_X_HSV
     predicted_Y = Y_full_RGB
@@ -52,13 +77,13 @@ else:
     predicted_Y = small_Y
 
 # Add the fake types.
-poke_type_1 = 'Ice'
+poke_type_1 = 'Normal'
 poke_type_2 = 'None'
 new_types_array = utilities.generate_all_one_type(len(predicted_X),
                                                   in_type=poke_type_1, in_second_type=poke_type_2)
 new_types_array = np.reshape(np.asarray(new_types_array), newshape=[new_types_array.shape[0],
                                                                     utilities.pokemon_types_dim])
-new_types_array = new_types_array * 5.00
+new_types_array = new_types_array * 10.00
 # new_types_array = new_types_array + Y_full_HSV
 if predict_full_dataset:
     expanded_fake_X = np.append(X_full_HSV, new_types_array, axis=1)
