@@ -50,6 +50,12 @@ def sortKeyFunction(s):
     return float(s)  # :-4 is to not return the extension
 
 
+# def calculate_hsv_means():
+    # Calculates the mean hsv values for each of the 18 pokemon types.
+    # for
+
+
+
 filename_list = glob.glob(source_folder+'*.jpg')
 # This was important, if not re-sorted, it used a non-numeric order, which was not desired in this case.
 filename_list.sort(key=sortKeyFunction)

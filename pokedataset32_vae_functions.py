@@ -82,7 +82,6 @@ def ssim_comparison(in_predicted, in_original):
         sess.run(print_op)
 
 
-
 def get_model_descriptive_name(in_optimizer, in_loss, in_version=''):
     now = datetime.now()
     current_time = now.strftime("%b_%d")  # %b is the code for Short mont version: Dec, Oct, etc.

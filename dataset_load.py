@@ -9,6 +9,7 @@ import glob
 import numpy as np
 import pokedataset32_vae_functions as utilities
 from PIL import Image
+import matplotlib
 from imgaug import augmenters as iaa
 
 # full RGB; full HSV, and train HSV augmented are the indispensable ones.
@@ -47,6 +48,57 @@ def sortKeyFunction(s):
     return float(s)  # :-4 is to not return the extension
 
 
+def calculate_mean_hsv_per_type(in_pokemon_rgba_images, in_pokemon_types):
+    reshaped_pokemon_rgba_images = np.reshape(in_pokemon_rgba_images, newshape=[len(in_pokemon_rgba_images), -1, 4])
+    trimmed_rgba_images_list = []
+    # reshaped_pokemon_rgba_images = reshaped_pokemon_rgba_images[reshaped_pokemon_rgba_images[:, :, 3] > 0, :3]
+    # Now, we cut the alpha pixels away, so they don't affect the average value. Get all with an alpha lower than 0.1
+    for current_image in reshaped_pokemon_rgba_images:
+        # Dropping the alpha channel
+        trimmed_rgba_image = current_image[current_image[:, 3] > 0, :3]
+        trimmed_rgba_images_list.append(trimmed_rgba_image)
+    # Question: Should every pokemon mean count the same towards the final mean per type? Or should it be the
+    # corresponding to the total pixels. For instance, a big pokemon sprite will have less alpha information cut,
+    # while smaller sprites will have less. Should they weigh the same in the final value? It's an interesting
+    # question to address later.
+
+    reshaped_pokemon_hsv_images = []
+    for current_image in trimmed_rgba_images_list:
+        # NOTE: The division by 255 must be performed BEFORE the conversion to HSV. Corrected.
+        current_image = np.true_divide(current_image, 255.)
+        current_image = matplotlib.colors.rgb_to_hsv(current_image)
+        reshaped_pokemon_hsv_images.append(current_image)
+
+    pokemon_per_types_list = []
+    for i_temp in range(0, utilities.pokemon_types_dim):
+        pokemon_per_types_list.append(list())
+
+    # Then, split them by type, so we have all fire types in one array, all water in another, and so on.
+    i_counter = 0
+    for (current_image, current_type) in zip(reshaped_pokemon_hsv_images, in_pokemon_types):
+        # Need to convert the types into 1 scalar, according to their alphabetical order. e.g. bug = 0, etc.
+        type_indices = np.asarray(np.where(current_type > 0.0)).flatten()  # It should be one or two indices.
+        # type_indices = list(type_indices)
+        for current_index in type_indices:
+            # To spend less memory, we could use only the image indices, but that is not the matter right now.
+            pokemon_per_types_list[current_index].append(current_image)
+        i_counter += 1
+
+    # Now we have all the images separated by types, we just have to calculate the mean HSV value
+    i_counter = 0
+    type_mean_hsv_value_list = [(0, 0, 0)] * utilities.pokemon_types_dim
+    for current_type_list in pokemon_per_types_list:
+        for current_element in current_type_list:
+            type_mean_hsv_value_list[i_counter] += current_element.mean(axis=0)
+        type_mean_hsv_value_list[i_counter] /= len(current_type_list)
+        rgb_color_of_mean = (matplotlib.colors.hsv_to_rgb(type_mean_hsv_value_list[i_counter]) * 255)
+        # We must now have a 3-tuple value, which is the mean HSV value for the type.
+        print("Mean HSV value for the type " + utilities.type_to_categorical[i_counter] +
+              " is: " + str(type_mean_hsv_value_list[i_counter]) + " while the RGB would be: " +
+              str(rgb_color_of_mean))
+        i_counter += 1
+
+
 # Load CSV file, indicate that the first column represents labels
 # Now, we can check for the
 my_file = open(csv_type_file)
@@ -77,6 +129,8 @@ for i in range(0, num_noise_per_pokemon):
 filename_list = glob.glob(source_folder+'*.png')
 filename_list.sort(key=sortKeyFunction)
 
+RGBA_array = []
+
 # Now, the images need to be augmented BEFORE converting it to the HSV color space.
 im_background = Image.new('RGBA', (32, 32), (255, 255, 255, 0))
 
@@ -85,8 +139,10 @@ for filename in filename_list:
         # Note, it is always converted to RBG, to ignore the Alpha channel
         # and because augmentation library (aleju/imgaug) works on RGB color space.
         im = image.convert('RGBA')
+        RGBA_pixels = np.asarray(im.getdata())
+        RGBA_array.append(RGBA_pixels)
 
-        pixel_matrix_wb = utilities.blend_alpha_images(im_background, im)
+        """pixel_matrix_wb = utilities.blend_alpha_images(im_background, im)
         white_background_image_list.append(pixel_matrix_wb)
 
         for i in range(0, num_noise_per_pokemon):
@@ -98,8 +154,9 @@ for filename in filename_list:
         pixel_matrix = np.asarray(im.getdata())  # Make the Width*Height*Depth matrices
         pixel_matrix = np.reshape(pixel_matrix, newshape=[32, 32, 3])
         pixel_matrix = pixel_matrix.astype(dtype=np.uint8)
-        image_list.append(pixel_matrix)  # Need them all stored in one container for augmentation.
+        image_list.append(pixel_matrix)  # Need them all stored in one container for augmentation."""
 
+calculate_mean_hsv_per_type(RGBA_array, encoded_type_labels)
 
 if use_augmentation:
     print("total images before augmentation is: " + str(len(image_list)))
