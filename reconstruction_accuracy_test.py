@@ -26,6 +26,12 @@ expanded_small_X = np.append(small_X, small_Y, axis=1)
 test_X = np.asarray(test_X)
 test_Y = np.asarray(test_Y)
 X_full_RGB = np.asarray(X_full_RGB)
+# X_train_RGB = X_full_RGB[0:int(len(X)/2)]
+# X_test_RGB = X_full_RGB[int(len(X)/2):int(len(X_full_RGB)/2)]
+X_train_RGB = np.concatenate((X_full_RGB[0:int(len(X)/4)],
+                              X_full_RGB[int(len(X_full_RGB)/2) : int(len(X_full_RGB)/2) + int(len(X)/4)]), axis=0)
+X_test_RGB = np.concatenate((X_full_RGB[int(len(X)/4):int(len(X_full_RGB)/2)],
+                             X_full_RGB[-int(len(test_X)/4):]), axis=0)
 
 Y = Y * 0.5
 test_X = test_X[0:294]  # We only want half of it.
@@ -46,11 +52,13 @@ network_instance = tflearn.regression(network_instance,
 
 model = tflearn.DNN(network_instance)
 
+print_ssim_scores = True
+
 print("LOADING MODEL.")
-first_model_name = "_V3"
+first_model_name = "_V3_noise2"
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_14_optim_adam_loss_vae_loss_"
+model.load("saved_models/model_Jul_20_optim_adam_loss_vae_loss_"
            "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8" + first_model_name + ".tflearn")
 
 print("getting samples to show on screen.")
@@ -58,28 +66,36 @@ encode_decode_sample_original = utilities.predict_batches(expanded_full_X_HSV, m
 reconstructed_pixels_original, reconstructed_types_original = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_original)
 print("MSE value for the " + first_model_name + " model, over the WHOLE dataset is: ")
-utilities.mean_square_error(reconstructed_pixels_original, X_full_HSV)
-utilities.ssim_comparison(reconstructed_pixels_original, X_full_HSV)
+utilities.mean_square_error(reconstructed_pixels_original, X_full_RGB)
+if print_ssim_scores:
+    print("SSIM is: ")
+    utilities.ssim_comparison(reconstructed_pixels_original, X_full_RGB)
 
 # Now, training only:
 encode_decode_sample_original_train = utilities.predict_batches(expanded_X, model, in_samples_per_batch=64)
 reconstructed_pixels_original_train, reconstructed_types_original_train = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_original_train)
 print("MSE value for the " + first_model_name + " model, over the TRAINING dataset is: ")
-utilities.mean_square_error(reconstructed_pixels_original_train, X)
+utilities.mean_square_error(reconstructed_pixels_original_train[0:len(X_train_RGB)], X_train_RGB)
+if print_ssim_scores:
+    print("SSIM is: ")
+    utilities.ssim_comparison(reconstructed_pixels_original_train[0:len(X_train_RGB)], X_train_RGB)
 
 # Now, testing data only:
 encode_decode_sample_original_test = utilities.predict_batches(expanded_test_X, model, in_samples_per_batch=64)
 reconstructed_pixels_original_test, reconstructed_types_original_test = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_original_test)
 print("MSE value for the " + first_model_name + " model, over the TESTING dataset is: ")
-utilities.mean_square_error(reconstructed_pixels_original_test, test_X)
+utilities.mean_square_error(reconstructed_pixels_original_test[0:len(X_test_RGB)], X_test_RGB)
+if print_ssim_scores:
+    print("SSIM is: ")
+    utilities.ssim_comparison(reconstructed_pixels_original_test[0:len(X_test_RGB)], X_test_RGB)
 
 ###############################
 
 # Now, we can load the transfer learning model.
-second_model_name = "_V3_noise4"
-model.load("saved_models/model_Jul_14_optim_adam_loss_vae_loss_"
+second_model_name = "_anime_labels_V3_poke4_no_noise5"  # "_V3_noise4" THIS WAS A GOOD MODEL.
+model.load("saved_models/model_Jul_20_optim_adam_loss_vae_loss_"
            "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8" + second_model_name + ".tflearn")
 
 # Both training and testing data together.
@@ -87,22 +103,30 @@ encode_decode_sample_transfer = utilities.predict_batches(expanded_full_X_HSV, m
 reconstructed_pixels_transfer, reconstructed_types_transfer = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer)
 print("MSE value for the " + second_model_name + " learning model, over the WHOLE dataset is: ")
-utilities.mean_square_error(reconstructed_pixels_transfer, X_full_HSV)
-utilities.ssim_comparison(reconstructed_pixels_transfer, X_full_HSV)
+utilities.mean_square_error(reconstructed_pixels_transfer, X_full_RGB)
+if print_ssim_scores:
+    print("SSIM is: ")
+    utilities.ssim_comparison(reconstructed_pixels_transfer, X_full_RGB)
 
 # Training data only.
 encode_decode_sample_transfer_train = utilities.predict_batches(expanded_X, model, in_samples_per_batch=64)
 reconstructed_pixels_transfer_train, reconstructed_types_transfer_train = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer_train)
 print("MSE value for the " + second_model_name + " learning model, over the TRAINING dataset is: ")
-utilities.mean_square_error(reconstructed_pixels_transfer_train, X)
+utilities.mean_square_error(reconstructed_pixels_transfer_train[0:len(X_train_RGB)], X_train_RGB)
+if print_ssim_scores:
+    print("SSIM is: ")
+    utilities.ssim_comparison(reconstructed_pixels_transfer_train[0:len(X_train_RGB)], X_train_RGB)
 
 # Testing data only.
 encode_decode_sample_transfer_test = utilities.predict_batches(expanded_test_X, model, in_samples_per_batch=64)
 reconstructed_pixels_transfer_test, reconstructed_types_transfer_test = \
     utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer_test)
 print("MSE value for the " + second_model_name + " learning model, over the TESTING dataset is: ")
-utilities.mean_square_error(reconstructed_pixels_transfer_test, test_X)
+utilities.mean_square_error(reconstructed_pixels_transfer_test[0:len(X_test_RGB)], X_test_RGB)
+if print_ssim_scores:
+    print("SSIM is: ")
+    utilities.ssim_comparison(reconstructed_pixels_transfer_test[0:len(X_test_RGB)], X_test_RGB)
 
 # ATLAS EXPORTATION ####################################################
 

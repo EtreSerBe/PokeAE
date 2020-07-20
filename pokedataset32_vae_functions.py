@@ -58,26 +58,34 @@ def mean_square_error(in_predicted, in_original):
     total_error = 0
     in_predicted = np.asarray(in_predicted)
     in_original = np.asarray(in_original)
-    squared_error = np.square(in_predicted-in_original).mean(axis=None)
-    print(str(squared_error))
+    squared_error = np.square(in_predicted - in_original)
+    squared_error_mean = squared_error.mean(axis=None)
+    print(str(squared_error_mean))
     return total_error
 
 
+# I need to check my SSIM measure, since It might be wrong if I use it over tensors like this.
 def ssim_comparison(in_predicted, in_original):
     sess = tf.compat.v1.Session()
     with sess.as_default():
         in_predicted = np.asarray(in_predicted)
         in_original = np.asarray(in_original)
-        in_predicted = tf.reshape(tf.convert_to_tensor(in_predicted), shape=[-1, 1024, 3])
-        in_original = tf.reshape(tf.convert_to_tensor(in_original), shape=[-1, 1024, 3])
-        in_predicted_grayscale = tf.image.rgb_to_grayscale(tf.image.hsv_to_rgb(in_predicted))
-        in_original_grayscale = tf.image.rgb_to_grayscale(tf.image.hsv_to_rgb(in_original))
-        out_ssim_scores = tf.image.ssim(in_predicted_grayscale, in_original_grayscale, max_val=1.0)
+        in_predicted = tf.reshape(tf.convert_to_tensor(in_predicted), shape=[-1, 32, 32, 3])
+        in_original = tf.reshape(tf.convert_to_tensor(in_original), shape=[-1, 32, 32, 3])
+        # print_op_all = tf.print("in_predicted is now: " + str(in_predicted), output_stream=sys.stdout)
+        # sess.run(print_op_all)
+        in_predicted_grayscale = tf.image.rgb_to_yuv(in_predicted)
+        in_original_grayscale = tf.image.rgb_to_yuv(in_original)
+        out_ssim_scores = tf.image.ssim(in_predicted_grayscale, in_original_grayscale, max_val=1.0, filter_size=11)
         # It should contain a value in [-1, 1] for each of the images compared. So we average it.
         out_ssim_average = tf.reduce_mean(out_ssim_scores)
         # Now we print it.
+        # print("All SSIM scores are: ")
+        # print_op_all = tf.print(out_ssim_scores, output_stream=sys.stdout)
+        # sess.run(print_op_all)
+        # print("The Average SSIM score is: ")
         print_op = tf.print(out_ssim_average, output_stream=sys.stdout)
-        tensor = tf.range(10)
+        # tensor = tf.range(10)
         # print_op = tf.print("tensors:", tensor, {2: tensor * 2}, output_stream=sys.stdout)
         sess.run(print_op)
 
@@ -473,7 +481,6 @@ def export_multi_type_atlas(in_image_list, in_reconstructed_image_list, in_force
     column_counter = 0
     # Make it big enough to put the original above the reconstructed. (That's why multiplied by 2)
     atlas_image = Image.new('RGB', (image_width * rows, image_height * rows * 3), (0, 0, 0))
-
     for original, reconstructed, forced in zip(in_image_list, in_reconstructed_image_list, in_forced_image_list):
         """if column_counter + (row_counter*rows) >= num_elements:
             break  # This is to stop it as soon as"""

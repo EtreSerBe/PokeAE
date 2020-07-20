@@ -10,8 +10,8 @@ import matplotlib.colors
 
 import pokedataset32_vae_functions as utilities
 
-# current_dataset = 'pokedataset'
-current_dataset = 'anime_faces_'
+current_dataset = 'pokedataset'
+# current_dataset = 'anime_faces_'
 
 # X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
 use_anime_with_types = True
@@ -65,8 +65,8 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_17_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_anime_labels.tflearn")
+model.load("saved_models/model_Jul_20_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_anime_labels_V3_poke3.tflearn")
 
 predict_full_dataset = False
 if predict_full_dataset:
@@ -77,7 +77,7 @@ else:
     predicted_Y = small_Y
 
 # Add the fake types.
-poke_type_1 = 'Normal'
+poke_type_1 = 'Fire'
 poke_type_2 = 'None'
 new_types_array = utilities.generate_all_one_type(len(predicted_X),
                                                   in_type=poke_type_1, in_second_type=poke_type_2)

@@ -142,7 +142,7 @@ for filename in filename_list:
         RGBA_pixels = np.asarray(im.getdata())
         RGBA_array.append(RGBA_pixels)
 
-        """pixel_matrix_wb = utilities.blend_alpha_images(im_background, im)
+        pixel_matrix_wb = utilities.blend_alpha_images(im_background, im)
         white_background_image_list.append(pixel_matrix_wb)
 
         for i in range(0, num_noise_per_pokemon):
@@ -154,9 +154,9 @@ for filename in filename_list:
         pixel_matrix = np.asarray(im.getdata())  # Make the Width*Height*Depth matrices
         pixel_matrix = np.reshape(pixel_matrix, newshape=[32, 32, 3])
         pixel_matrix = pixel_matrix.astype(dtype=np.uint8)
-        image_list.append(pixel_matrix)  # Need them all stored in one container for augmentation."""
+        image_list.append(pixel_matrix)  # Need them all stored in one container for augmentation.
 
-calculate_mean_hsv_per_type(RGBA_array, encoded_type_labels)
+# calculate_mean_hsv_per_type(RGBA_array, encoded_type_labels)
 
 if use_augmentation:
     print("total images before augmentation is: " + str(len(image_list)))

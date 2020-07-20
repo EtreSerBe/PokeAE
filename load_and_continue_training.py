@@ -7,24 +7,48 @@ import matplotlib.colors
 import pokedataset32_vae_functions as utilities
 import matplotlib.pyplot as plt
 
-use_noise = True
+use_noise = False
 current_dataset = 'pokedataset'
 # current_dataset = 'anime_faces_'
 
-X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
+use_anime_with_types = False
+if not use_anime_with_types or current_dataset == 'pokedataset':
+    X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(
+        current_dataset)
+    if use_noise:
+        X_noisy_HSV, Y_noisy_HSV = \
+            utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5")
 
-if use_noise:
-    X_noisy_HSV, Y_noisy_HSV = \
-        utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5")
+        X_noisy_HSV_test, Y_noisy_HSV_test = \
+            utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5",
+                                                      in_dataset_x_label="pokedataset32_X_test",
+                                                      in_dataset_y_label="pokedataset32_Y_test")
 
-    X_noisy_HSV_test, Y_noisy_HSV_test = \
-        utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5",
-                                                  in_dataset_x_label="pokedataset32_X_test",
-                                                  in_dataset_y_label="pokedataset32_Y_test")
+        X_plus_noise = np.concatenate((X, X_noisy_HSV), axis=0)
+        Y_plus_noise = np.concatenate((Y, Y_noisy_HSV), axis=0)
+        Y_plus_noise = Y_plus_noise * 0.5
+else:
+    X, Y = utilities.prepare_dataset_for_input_layer(
+        'anime_faces_32_train_HSV_Two_Hot_Encoded_Augmented_With_Types.h5', in_dataset_x_label='anime_faces_32_X',
+        in_dataset_y_label='anime_faces_32_Y')
+    test_X, test_Y = utilities.prepare_dataset_for_input_layer(
+        'anime_faces_32_train_HSV_Two_Hot_Encoded_Augmented_With_Types.h5', in_dataset_x_label='anime_faces_32_X_test',
+        in_dataset_y_label='anime_faces_32_Y_test')
+    X_full_RGB, Y_full_RGB = utilities.prepare_dataset_for_input_layer(
+        'anime_faces_32_full_RGB_Two_Hot_Encoded.h5', in_dataset_x_label='anime_faces_32_X',
+        in_dataset_y_label='anime_faces_32_Y')
 
-    X_plus_noise = np.concatenate((X, X_noisy_HSV), axis=0)
-    Y_plus_noise = np.concatenate((Y, Y_noisy_HSV), axis=0)
-    Y_plus_noise = Y_plus_noise * 0.5
+    X_first_half = X[0:int(len(X) / 2)]
+    Y_first_half = Y[0:int(len(Y) / 2)]
+    test_X_first_half = test_X[0:int(len(test_X) / 2)]
+    test_Y_first_half = test_Y[0:int(len(test_Y) / 2)]
+    """X_second_half = X[int(len(X) / 2):]
+    Y_second_half = Y[int(len(Y) / 2):]
+    test_X_second_half = test_X[int(len(test_X) / 2):]
+    test_Y_second_half = test_Y[int(len(test_Y) / 2):]"""
+    X_full_HSV = np.concatenate((X_first_half, test_X_first_half), axis=0)
+    Y_full_HSV = np.concatenate((Y_first_half, test_Y_first_half), axis=0)
+    Y_full_RGB = Y_full_HSV  # Replace it, since RGB was not saved with types.
 
 
 Y = Y * 0.5
@@ -54,18 +78,16 @@ predict_full_dataset = True
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
 loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name,
-                                                         in_version='_V3_noise3')
+                                                         in_version='_anime_labels_V3_poke4_no_noise5')
 final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name,
-                                                        in_version='_V3_noise4')
+                                                        in_version='_anime_labels_V3_poke4_no_noise5')
 save_images = False
 
 network_instance = tflearn.regression(network_instance,
                                       optimizer=optimizer_name,
-                                      # optimizer='rmsp,
                                       metric='R2',
                                       loss=utilities.vae_loss,
-                                      # loss=utilities.vae_loss_abs_error,
-                                      learning_rate=0.0000000001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.0000170)  # adagrad? #adadelta #nesterov did good,
 
 model = tflearn.DNN(network_instance)
 print("LOADING MODEL.")
@@ -78,11 +100,11 @@ reconstructed_types = []
 for lap in range(0, 1):
     # Now, continue the training with VERY SMALL batch sizes, so it can learn specifics about each pokemon.
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=100,
+              n_epoch=50,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=64,
+              batch_size=128,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.
