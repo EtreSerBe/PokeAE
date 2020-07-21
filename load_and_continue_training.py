@@ -78,16 +78,16 @@ predict_full_dataset = True
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
 loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name,
-                                                         in_version='_anime_labels_V3_poke4_no_noise5')
+                                                         in_version='_anime_labels_V3_poke4_no_noise6')
 final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name,
-                                                        in_version='_anime_labels_V3_poke4_no_noise5')
+                                                        in_version='_anime_labels_V3_poke4_no_noise7')
 save_images = False
 
 network_instance = tflearn.regression(network_instance,
                                       optimizer=optimizer_name,
                                       metric='R2',
                                       loss=utilities.vae_loss,
-                                      learning_rate=0.0000170)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.0000190)  # adagrad? #adadelta #nesterov did good,
 
 model = tflearn.DNN(network_instance)
 print("LOADING MODEL.")

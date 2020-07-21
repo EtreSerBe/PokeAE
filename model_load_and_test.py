@@ -65,10 +65,10 @@ print("LOADING MODEL.")
 
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_20_optim_adam_loss_vae_loss_"
-           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_anime_labels_V3_poke3.tflearn")
+model.load("saved_models/model_Jul_21_optim_adam_loss_vae_loss_"
+           "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8_anime_labels_V3_poke4_no_noise6.tflearn")
 
-predict_full_dataset = False
+predict_full_dataset = True
 if predict_full_dataset:
     predicted_X = expanded_full_X_HSV
     predicted_Y = Y_full_RGB
@@ -77,16 +77,19 @@ else:
     predicted_Y = small_Y
 
 # Add the fake types.
-poke_type_1 = 'Fire'
+poke_type_1 = 'Grass'
 poke_type_2 = 'None'
 new_types_array = utilities.generate_all_one_type(len(predicted_X),
                                                   in_type=poke_type_1, in_second_type=poke_type_2)
 new_types_array = np.reshape(np.asarray(new_types_array), newshape=[new_types_array.shape[0],
                                                                     utilities.pokemon_types_dim])
-new_types_array = new_types_array * 10.00
-# new_types_array = new_types_array + Y_full_HSV
+# new_types_array = new_types_array * 20.00
+# new_types_array = new_types_array - Y_full_HSV
+# new_types_array = new_types_array * 1.000
+
 if predict_full_dataset:
     expanded_fake_X = np.append(X_full_HSV, new_types_array, axis=1)
+    expanded_fake_X = expanded_fake_X * 2.0
     exporting_RGB = X_full_RGB
 else:
     expanded_fake_X = np.append(small_X, new_types_array, axis=1)

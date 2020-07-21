@@ -58,7 +58,7 @@ print("LOADING MODEL.")
 first_model_name = "_V3_noise2"
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_20_optim_adam_loss_vae_loss_"
+model.load("saved_models/model_Jul_21_optim_adam_loss_vae_loss_"
            "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8" + first_model_name + ".tflearn")
 
 print("getting samples to show on screen.")
@@ -94,8 +94,8 @@ if print_ssim_scores:
 ###############################
 
 # Now, we can load the transfer learning model.
-second_model_name = "_anime_labels_V3_poke4_no_noise5"  # "_V3_noise4" THIS WAS A GOOD MODEL.
-model.load("saved_models/model_Jul_20_optim_adam_loss_vae_loss_"
+second_model_name = "_anime_labels_V3_poke4_no_noise6"  # "_V3_noise4" THIS WAS A GOOD MODEL.
+model.load("saved_models/model_Jul_21_optim_adam_loss_vae_loss_"
            "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8" + second_model_name + ".tflearn")
 
 # Both training and testing data together.
