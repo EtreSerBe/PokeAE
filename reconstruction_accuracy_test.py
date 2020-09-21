@@ -16,6 +16,15 @@ current_dataset = 'pokedataset'
 # X and Y are not used in this file.
 X_full_HSV, Y_full_HSV, X_full_RGB, Y_full_RGB, X, Y, test_X, test_Y = utilities.ready_all_data_sets(current_dataset)
 
+X_full_HSV_regional, Y_full_HSV_regional = \
+    utilities.prepare_dataset_for_input_layer("pokedataset32_full_HSV_Two_Hot_Encoded_Regional.h5")
+Y_full_HSV_regional = Y_full_HSV_regional * 0.5
+expanded_full_X_HSV_regional = np.append(X_full_HSV_regional, Y_full_HSV_regional, axis=1)
+X_full_RGB_regional, Y_full_RGB_regional = \
+    utilities.prepare_dataset_for_input_layer("pokedataset32_full_RGB_Two_Hot_Encoded_Regional.h5")
+Y_full_RGB_regional = Y_full_HSV_regional
+expanded_full_X_RGB_regional = np.append(X_full_HSV_regional, Y_full_HSV_regional, axis=1)
+
 Y_full_HSV = Y_full_HSV * 0.50
 small_X = np.concatenate((X[0:200], test_X[0:200]), axis=0)
 small_Y = np.concatenate((Y[0:200], test_Y[0:200]), axis=0)
@@ -28,10 +37,10 @@ test_Y = np.asarray(test_Y)
 X_full_RGB = np.asarray(X_full_RGB)
 # X_train_RGB = X_full_RGB[0:int(len(X)/2)]
 # X_test_RGB = X_full_RGB[int(len(X)/2):int(len(X_full_RGB)/2)]
-X_train_RGB = np.concatenate((X_full_RGB[0:int(len(X)/4)],
-                              X_full_RGB[int(len(X_full_RGB)/2) : int(len(X_full_RGB)/2) + int(len(X)/4)]), axis=0)
-X_test_RGB = np.concatenate((X_full_RGB[int(len(X)/4):int(len(X_full_RGB)/2)],
-                             X_full_RGB[-int(len(test_X)/4):]), axis=0)
+X_train_RGB = np.concatenate((X_full_RGB[0:int(len(X) / 4)],
+                              X_full_RGB[int(len(X_full_RGB) / 2): int(len(X_full_RGB) / 2) + int(len(X) / 4)]), axis=0)
+X_test_RGB = np.concatenate((X_full_RGB[int(len(X) / 4):int(len(X_full_RGB) / 2)],
+                             X_full_RGB[-int(len(test_X) / 4):]), axis=0)
 
 Y = Y * 0.5
 test_X = test_X[0:294]  # We only want half of it.
@@ -55,10 +64,11 @@ model = tflearn.DNN(network_instance)
 print_ssim_scores = True
 
 print("LOADING MODEL.")
-first_model_name = "_V3_noise2"
+first_model_name = "_regular_V3_no_noise2"  # This is the one for the encoder-only part. From Jul_28
+# first_model_name = "_regular_V2_more_noise2"  # this was from Jul_23
 # This hasn't been commited yet, due to network restrictions (AKA slow upload connection).
 # Double check to have a folder with the correct path here.
-model.load("saved_models/model_Jul_21_optim_adam_loss_vae_loss_"
+model.load("saved_models/model_Jul_29_optim_adam_loss_vae_loss_"
            "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8" + first_model_name + ".tflearn")
 
 print("getting samples to show on screen.")
@@ -91,11 +101,23 @@ if print_ssim_scores:
     print("SSIM is: ")
     utilities.ssim_comparison(reconstructed_pixels_original_test[0:len(X_test_RGB)], X_test_RGB)
 
+# Now, Regional test data only:
+encode_decode_sample_original_test_regional = utilities.predict_batches(expanded_full_X_HSV_regional,
+                                                                        model, in_samples_per_batch=64)
+reconstructed_pixels_original_test_regional, reconstructed_types_original_test_regional = \
+    utilities.reconstruct_pixels_and_types(encode_decode_sample_original_test_regional)
+print("MSE value for the " + first_model_name + " model, over the REGIONAL dataset is: ")
+utilities.mean_square_error(reconstructed_pixels_original_test_regional, X_full_RGB_regional)
+if print_ssim_scores:
+    print("SSIM is: ")
+    utilities.ssim_comparison(reconstructed_pixels_original_test_regional, X_full_RGB_regional)
+
 ###############################
 
 # Now, we can load the transfer learning model.
-second_model_name = "_anime_labels_V3_poke4_no_noise6"  # "_V3_noise4" THIS WAS A GOOD MODEL.
-model.load("saved_models/model_Jul_21_optim_adam_loss_vae_loss_"
+# second_model_name = "_V3_noise2"  # 21 of july  # "_V3_noise4" THIS WAS A GOOD MODEL.
+second_model_name = "_anime_V2_poke5"
+model.load("saved_models/model_Jul_29_optim_adam_loss_vae_loss_"
            "last_activ_relu_latent_128_num_filters_512_1024_decoder_width_8" + second_model_name + ".tflearn")
 
 # Both training and testing data together.
@@ -128,11 +150,26 @@ if print_ssim_scores:
     print("SSIM is: ")
     utilities.ssim_comparison(reconstructed_pixels_transfer_test[0:len(X_test_RGB)], X_test_RGB)
 
+# Now, Regional test data only:
+encode_decode_sample_transfer_test_regional = utilities.predict_batches(expanded_full_X_HSV_regional,
+                                                                        model, in_samples_per_batch=64)
+reconstructed_pixels_transfer_test_regional, reconstructed_types_transfer_test_regional = \
+    utilities.reconstruct_pixels_and_types(encode_decode_sample_transfer_test_regional)
+print("MSE value for the " + second_model_name + " model, over the REGIONAL dataset is: ")
+utilities.mean_square_error(reconstructed_pixels_transfer_test_regional, X_full_RGB_regional)
+if print_ssim_scores:
+    print("SSIM is: ")
+    utilities.ssim_comparison(reconstructed_pixels_transfer_test_regional, X_full_RGB_regional)
+
 # ATLAS EXPORTATION ####################################################
 
 print("Exporting both TRAINING and TESTING reconstructed pokemon as an image.")
 utilities.export_multi_type_atlas(X_full_RGB, reconstructed_pixels_original, reconstructed_pixels_transfer,
                                   name_prefix='_' + first_model_name + '_VS_' + second_model_name + '_')
+
+utilities.export_multi_type_atlas(X_full_RGB_regional, reconstructed_pixels_original_test_regional,
+                                  reconstructed_pixels_transfer_test_regional,
+                                  name_prefix='Regional_' + first_model_name + '_VS_' + second_model_name + '_')
 
 # Now, to export the testing samples only.
 exporting_RGB = np.concatenate((X_full_RGB[827:974], X_full_RGB[1801:]), axis=0)

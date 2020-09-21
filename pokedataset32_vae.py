@@ -64,13 +64,15 @@ else:
     Y_full_HSV = np.concatenate((Y_first_half, test_Y_first_half), axis=0)
     Y_full_RGB = Y_full_HSV  # Replace it, since RGB was not saved with types.
 
-"""X_noisy_HSV, Y_noisy_HSV = \
+"""
+X_noisy_HSV, Y_noisy_HSV = \
     utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5")
 
 X_noisy_HSV_test, Y_noisy_HSV_test = \
     utilities.prepare_dataset_for_input_layer("pokedataset32_train_NOISE_HSV_Two_Hot_Encoded_Augmented.h5",
                                               in_dataset_x_label="pokedataset32_X_test",
-                                              in_dataset_y_label="pokedataset32_Y_test")"""
+                                              in_dataset_y_label="pokedataset32_Y_test")
+"""
 
 # NOTE: Use these lines to output a visualization of the data sets, if you think
 # there is any problem with them. But I've checked and they seem correct.
@@ -104,7 +106,7 @@ print("expanded Xs and Ys ready")
 predict_full_dataset = False
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
-final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_anime_labels')
+final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name, in_version='_anime')
 # I put the network's definition in the pokedataset32_vae_functions.py file, to unify it with the load model.
 network_instance = utilities.get_network()
 
@@ -112,13 +114,13 @@ network_instance = tflearn.regression(network_instance,
                                       optimizer=optimizer_name,
                                       metric='R2',
                                       loss=utilities.vae_loss,
-                                      learning_rate=0.0001)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.0002)  # adagrad? #adadelta #nesterov did good,
 model = tflearn.DNN(network_instance)  # , session=current_session)  # , tensorboard_verbose=2)
 strategy = tf.distribute.MirroredStrategy()
 with strategy.scope():
     print("Preparing model to fit.")
     model.fit(expanded_X, Y_targets=expanded_X,
-              n_epoch=10,
+              n_epoch=1,
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,

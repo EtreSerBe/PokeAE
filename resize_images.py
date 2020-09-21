@@ -12,7 +12,8 @@ from PIL import Image
 from imgaug import augmenters as iaa
 
 # source_folder = 'C:/Users/Adrián González/Desktop/anime faces dataset/'
-source_folder = 'C:/Users/Adrian/Downloads/images/'
+# source_folder = 'C:/Users/Adrian/Downloads/images/'
+source_folder = 'C:/Users/Adrian/Desktop/Pokemon Images Dataset/regional/'
 
 
 # As seen in https://stackoverflow.com/questions/4601373/better-way-to-shuffle-two-numpy-arrays-in-unison
@@ -24,7 +25,7 @@ def unison_shuffled_copies(a, b):
 
 def sortKeyFunction(s):
     print(os.path.basename(s))
-    number = os.path.basename(s)[:-4]
+    number = os.path.basename(s)[:-7]
 
     print(number)
     s = number
@@ -32,14 +33,15 @@ def sortKeyFunction(s):
 
 
 # csv_reader_object = csv.reader(my_file)
-filename_list = glob.glob(source_folder+'*.jpg')
+filename_list = glob.glob(source_folder+'*.png')
 filename_list.sort(key=sortKeyFunction)
 
 for filename in filename_list:
     with Image.open(filename) as image:
         # Note, it is always converted to RBG, to ignore the Alpha channel
         # and because augmentation library (aleju/imgaug) works on RGB color space.
-        im = image.convert('RGB')
+        im = image.convert('RGBA')
         reduced_im = im.resize((32, 32), resample=Image.BICUBIC)
         number = os.path.basename(filename)[:-4]
-        reduced_im.save(source_folder + "32_32/" + number + "_32.jpg")
+        number = number.replace("_f", ".")
+        reduced_im.save(source_folder + "32_32/" + number + "_32.png")

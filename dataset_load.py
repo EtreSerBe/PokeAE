@@ -14,17 +14,24 @@ from imgaug import augmenters as iaa
 
 # full RGB; full HSV, and train HSV augmented are the indispensable ones.
 # Important parameters for the data set creation. Modifying them will change the final set generated.
-image_format_to_use = "HSV"
-full_dataset = False
-use_augmentation = True  # NOTE: Right now, if augmentation is used, the full dataset option should be disabled.
+image_format_to_use = "RGB"
+full_dataset = True
+use_augmentation = False  # NOTE: Right now, if augmentation is used, the full dataset option should be disabled.
 use_type_swap = False
+use_regional_forms = True
 use_two_hot_encoding = True
-num_noise_per_pokemon = 2
+num_noise_per_pokemon = 0
 
 # This is only used for the Pokemon images with swapped types, which are a special dataset for testing.
 if not use_type_swap:
-    source_folder = 'poke3232dataset/'
-    csv_type_file = 'pokemontypes_2020.csv'
+    if not use_regional_forms:
+        source_folder = 'poke3232dataset/'
+        csv_type_file = 'pokemontypes_2020.csv'
+    else:
+        source_folder = 'regional_forms/'
+        csv_type_file = 'pokemontypes_2020_regional.csv'
+        source_folder_non_regional = 'regional_forms_unchanged/'
+        csv_type_file_non_regional = 'pokemontypes_2020_regional_unchanged.csv'
 else:
     source_folder = 'poke3232dataset_type_swapped/'
     csv_type_file = 'pokemontypes_2020_type_swapped.csv'
@@ -99,14 +106,45 @@ def calculate_mean_hsv_per_type(in_pokemon_rgba_images, in_pokemon_types):
         i_counter += 1
 
 
+if use_regional_forms:
+    my_file_non_regional = open(csv_type_file_non_regional)
+    csv_reader_dict_non_regional = csv.DictReader(my_file_non_regional)
+    encoded_type_labels_non_regional = utilities.read_types_from_csv(csv_reader_dict_non_regional,
+                                                                     use_two_hot_encoding)
+    encoded_type_labels_non_regional = np.asarray(encoded_type_labels_non_regional)
+    filename_list_non_regional = glob.glob(source_folder_non_regional + '*.png')
+    filename_list_non_regional.sort(key=sortKeyFunction)
+    image_list_non_regional = []
+    image_list_non_regional_white = []
+    im_background = Image.new('RGBA', (32, 32), (255, 255, 255, 0))
+    for filename in filename_list_non_regional:
+        with Image.open(filename) as image:
+            im = image.convert('RGBA')
+            RGBA_pixels = np.asarray(im.getdata())
+
+            pixel_matrix_wb = utilities.blend_alpha_images(im_background, im)
+            image_list_non_regional_white.append(pixel_matrix_wb)
+            im = image.convert('RGB')
+            pixel_matrix = np.asarray(im.getdata())  # Make the Width*Height*Depth matrices
+            pixel_matrix = np.reshape(pixel_matrix, newshape=[32, 32, 3])
+            pixel_matrix = pixel_matrix.astype(dtype=np.uint8)
+            image_list_non_regional.append(pixel_matrix)
+    image_list_non_regional.extend(image_list_non_regional_white)
+    encoded_type_labels_non_regional = np.concatenate((encoded_type_labels_non_regional,
+                                                       encoded_type_labels_non_regional), axis=0)
+    pixel_data_non_regional = image_list_non_regional  # Only pass the variables to the correct names.
+    label_data_non_regional = encoded_type_labels_non_regional
+
+    pixel_data_non_regional = np.asarray(pixel_data_non_regional).astype(dtype=np.float)
+
+    # Now, we need to put them in the correct format according to the desired set.
+    pixel_data_non_regional = utilities.convert_to_format(pixel_data_non_regional, image_format_to_use)
+
 # Load CSV file, indicate that the first column represents labels
 # Now, we can check for the
 my_file = open(csv_type_file)
 csv_reader_dict = csv.DictReader(my_file)
-# csv_reader_object = csv.reader(my_file)
-
 encoded_type_labels = []
-
 type_to_categorical = ['Bug', 'Dark', 'Dragon', 'Electric', 'Fairy', 'Fighting', 'Fire', 'Flying',
                        'Ghost', 'Grass', 'Ground', 'Ice', 'Normal', 'Poison', 'Psychic', 'Rock', 'Steel', 'Water']
 
@@ -225,16 +263,21 @@ if full_dataset:
     h5f = h5py.File('pokedataset32_full_' + image_format_to_use +
                     ('_Two_Hot_Encoded' if use_two_hot_encoding else '') +
                     ('_Augmented' if use_augmentation else '') +
-                    ('_Type_Swapped' if use_type_swap else '') + '.h5', 'w')
+                    ('_Type_Swapped' if use_type_swap else '') +
+                    ('_Regional' if use_regional_forms else '') + '.h5', 'w')
     # These two lines below are used when the full data set is to be in one file.
     h5f.create_dataset('pokedataset32_X', data=pixel_data)
     h5f.create_dataset('pokedataset32_Y', data=label_data)
+    if use_regional_forms:
+        h5f.create_dataset('pokedataset32_X_original', data=pixel_data_non_regional)
+        h5f.create_dataset('pokedataset32_Y_original', data=label_data_non_regional)
     h5f.close()
 else:  # If it has train and test separation.
     h5f = h5py.File('pokedataset32_train_' + image_format_to_use +
                     ('_Two_Hot_Encoded' if use_two_hot_encoding else '') +
                     ('_Augmented' if use_augmentation else '') +
-                    ('_Type_Swapped' if use_type_swap else '') + '.h5', 'w')
+                    ('_Type_Swapped' if use_type_swap else '') +
+                    ('_Regional' if use_regional_forms else '') + '.h5', 'w')
     # These four lines below are for the data split into train and test portions.
     h5f.create_dataset('pokedataset32_X', data=pixel_data)
     h5f.create_dataset('pokedataset32_Y', data=label_data)
@@ -245,7 +288,8 @@ else:  # If it has train and test separation.
         h5f_NOISE = h5py.File('pokedataset32_train_NOISE_' + image_format_to_use +
                               ('_Two_Hot_Encoded' if use_two_hot_encoding else '') +
                               ('_Augmented' if use_augmentation else '') +
-                              ('_Type_Swapped' if use_type_swap else '') + '.h5', 'w')
+                              ('_Type_Swapped' if use_type_swap else '') +
+                              ('_Regional' if use_regional_forms else '') + '.h5', 'w')
         # These four lines below are for the data split into train and test portions.
         h5f_NOISE.create_dataset('pokedataset32_X', data=train_pixel_noisy_data)
         h5f_NOISE.create_dataset('pokedataset32_Y', data=train_noisy_labels_data)

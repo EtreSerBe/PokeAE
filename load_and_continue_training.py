@@ -38,6 +38,11 @@ else:
         'anime_faces_32_full_RGB_Two_Hot_Encoded.h5', in_dataset_x_label='anime_faces_32_X',
         in_dataset_y_label='anime_faces_32_Y')
 
+    X = np.concatenate((X, test_X[0:17000]), axis=0)
+    Y = np.concatenate((Y, test_Y[0:17000]), axis=0)
+    test_X = test_X[17000:]
+    test_Y = test_Y[17000:]
+
     X_first_half = X[0:int(len(X) / 2)]
     Y_first_half = Y[0:int(len(Y) / 2)]
     test_X_first_half = test_X[0:int(len(test_X) / 2)]
@@ -78,16 +83,16 @@ predict_full_dataset = True
 optimizer_name = 'adam'
 loss_name = 'vae_loss'
 loaded_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name,
-                                                         in_version='_anime_labels_V3_poke4_no_noise6')
+                                                         in_version='_anime_V2_poke5')
 final_model_name = utilities.get_model_descriptive_name(optimizer_name, loss_name,
-                                                        in_version='_anime_labels_V3_poke4_no_noise7')
+                                                        in_version='_anime_V2_poke5')
 save_images = False
 
 network_instance = tflearn.regression(network_instance,
                                       optimizer=optimizer_name,
                                       metric='R2',
                                       loss=utilities.vae_loss,
-                                      learning_rate=0.0000190)  # adagrad? #adadelta #nesterov did good,
+                                      learning_rate=0.00002)  # adagrad? #adadelta #nesterov did good,
 
 model = tflearn.DNN(network_instance)
 print("LOADING MODEL.")
@@ -104,7 +109,7 @@ for lap in range(0, 1):
               shuffle=True,
               show_metric=True,
               snapshot_epoch=True,
-              batch_size=128,
+              batch_size=256,
               # validation_set=0.15,  # It also accepts a float < 1 to performs a data split over training data.
               validation_set=(expanded_test_X, expanded_test_X),
               # We use it for validation for now. But also test.

@@ -12,8 +12,6 @@ import sys
 type_to_categorical = ['Bug', 'Dark', 'Dragon', 'Electric', 'Fairy', 'Fighting', 'Fire', 'Flying',
                        'Ghost', 'Grass', 'Ground', 'Ice', 'Normal', 'Poison', 'Psychic', 'Rock', 'Steel', 'Water']
 
-
-
 # Params
 image_dimension = 32
 image_color_dimension = 3
@@ -106,17 +104,19 @@ def get_network():
     # Building the encoder # The size of the input should be 3108 = 3072 + 18
     networkInput = tflearn.input_data(shape=[None, original_dim + pokemon_types_dim])
     # Once the data is in, we need to split the pixel data and the types data.
-    map_flat = tf.slice(networkInput, [0, 0], [-1, original_dim])
-    pokemonTypes = tf.slice(networkInput, [0, original_dim], [-1, -1])
+    map_flat = tf.slice(networkInput, [0, 0], [-1, original_dim], name='slice_input1')
+    pokemonTypes = tf.slice(networkInput, [0, original_dim], [-1, -1], name='slice_input2')
 
     # We reshape the flat versions to something more like the original.
-    mapShape = tf.reshape(map_flat, [-1, image_dimension, image_dimension, image_color_dimension])
+    mapShape = tf.reshape(map_flat, [-1, image_dimension, image_dimension, image_color_dimension], name='reshape_input')
     print("mapShape dimensions, before Conv_2D #1 are: " + str(mapShape))
 
     encoderStructure = tflearn.conv_2d(mapShape, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
-                                       strides=FILTER_STRIDES_FIRST, activation=ALL_OTHER_ACTIVATIONS)
+                                       strides=FILTER_STRIDES_FIRST, activation=ALL_OTHER_ACTIVATIONS,
+                                       scope='encoder_conv_1')
     encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
-                                       strides=FILTER_STRIDES_SECOND, activation=ALL_OTHER_ACTIVATIONS)
+                                       strides=FILTER_STRIDES_SECOND, activation=ALL_OTHER_ACTIVATIONS,
+                                       scope='encoder_conv_2')
     """encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_THIRD, 2,
                                        strides=2, activation=ALL_OTHER_ACTIVATIONS)
     print("encoderStructure after WEIRD CONVOLUTION is: " + str(encoderStructure))  # Should be 4 by 4"""
@@ -136,8 +136,10 @@ def get_network():
 
     global glob_z_mean
     global glob_z_std
-    glob_z_mean = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION)
-    glob_z_std = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION)
+    glob_z_mean = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION,
+                                          scope='encoder_mean')
+    glob_z_std = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION,
+                                         scope='encoder_std_dev')
     # Sampler: Normal (gaussian) random distribution
     eps = tf.random_normal(tf.shape(glob_z_std), dtype=tf.float32, mean=0.0, stddev=1.0,
                            name='epsilon')  # + 0.00001
@@ -280,12 +282,42 @@ def get_generative_network(in_trained_model):
     return generator_model
 
 
+def get_encoder_network(in_trained_model):
+    networkInput = tflearn.input_data(shape=[None, original_dim + pokemon_types_dim], name='input_images')
+    # Once the data is in, we need to split the pixel data and the types data.
+    map_flat = tf.slice(networkInput, [0, 0], [-1, original_dim], name='slice_input1')
+    pokemonTypes = tf.slice(networkInput, [0, original_dim], [-1, -1], name='slice_input2')
+    mapShape = tf.reshape(map_flat, [-1, image_dimension, image_dimension, image_color_dimension], name='reshape_input')
+    encoderStructure = tflearn.conv_2d(mapShape, NUM_FILTERS_FIRST, FILTER_SIZE_FIRST,
+                                       strides=FILTER_STRIDES_FIRST, activation=ALL_OTHER_ACTIVATIONS,
+                                       scope='encoder_conv_1', reuse=True)
+    encoderStructure = tflearn.conv_2d(encoderStructure, NUM_FILTERS_SECOND, FILTER_SIZE_SECOND,
+                                       strides=FILTER_STRIDES_SECOND, activation=ALL_OTHER_ACTIVATIONS,
+                                       scope='encoder_conv_2', reuse=True)
+    flatStructure = tflearn.flatten(encoderStructure)
+    encoder = tf.concat([flatStructure, pokemonTypes], 1)
+
+    global glob_z_mean
+    global glob_z_std
+    glob_z_mean = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION,
+                                          scope='encoder_mean', reuse=True)
+    glob_z_std = tflearn.fully_connected(encoder, latent_dimension, activation=EMBEDDED_ACTIVATION,
+                                         scope='encoder_std_dev', reuse=True)
+    # Sampler: Normal (gaussian) random distribution
+    eps = tf.random_normal(tf.shape(glob_z_std), dtype=tf.float32, mean=0.0, stddev=1.0,
+                           name='epsilon')  # + 0.00001
+    z = glob_z_mean + tf.exp(glob_z_std / 2.0) * eps
+    network = z
+    encoder_model = tflearn.DNN(network, session=in_trained_model.session)
+    return encoder_model
+
+
 def generate_random_noise(in_width=32, in_height=32, in_num_channels=3):
-    rand_image = np.random.randint(0, 255, size=[in_width*in_height, in_num_channels], dtype=np.uint8)
-    alpha_zeros = np.zeros(shape=[in_width*in_height, 1])
+    rand_image = np.random.randint(0, 255, size=[in_width * in_height, in_num_channels], dtype=np.uint8)
+    alpha_zeros = np.zeros(shape=[in_width * in_height, 1])
     alpha_zeros = alpha_zeros.astype(dtype=np.uint8)
     rand_image = np.concatenate((rand_image[:], alpha_zeros), axis=1)
-    rand_image = np.reshape(rand_image, newshape=[in_width, in_height, in_num_channels+1])
+    rand_image = np.reshape(rand_image, newshape=[in_width, in_height, in_num_channels + 1])
     rand_im = Image.fromarray(rand_image, 'RGBA')
     return rand_im
 
@@ -518,6 +550,53 @@ def export_multi_type_atlas(in_image_list, in_reconstructed_image_list, in_force
     now = datetime.now()
     current_time = now.strftime("%Y-%b-%d %H-%M")
     print('saving output Multi type atlas image in the ImageOutputs folder.')
+    atlas_image.save('ImageOutputs/' + name_prefix + 'Image_'
+                     + name_annotations + '_' + str(current_time) + '.png')
+
+
+def export_latent_exploration_atlas(in_reconstructed_image_list, in_forced_image_list,
+                                    image_width=32, image_height=32,
+                                    num_channels=3, samples_per_latent=11, name_annotations='', name_prefix=''):
+    num_elements = len(in_forced_image_list)
+    if num_elements == 0:
+        return
+    elements_per_row = samples_per_latent
+    total_rows = int(math.ceil(num_elements/elements_per_row))
+    row_counter = 0
+    column_counter = 0
+    # Make it big enough to put the original above the reconstructed. (That's why multiplied by 2)
+    atlas_image = Image.new('RGB', (image_width * elements_per_row, total_rows * (image_height * 2 + 10)), (0, 0, 0))
+    for reconstructed, forced in zip(in_reconstructed_image_list, in_forced_image_list):
+
+        reshaped_image = np.zeros(shape=[image_width, 10, num_channels])
+
+        reshaped_reconstructed = np.reshape(
+            np.uint8(np.multiply(reconstructed.flatten(), 255.)),
+            [image_width, image_height, num_channels])
+
+        reshaped_forced = np.reshape(
+            np.uint8(np.multiply(forced.flatten(), 255.)),
+            [image_width, image_height, num_channels])
+
+        offset = (column_counter * image_width, row_counter * (image_height * 2 + 10))
+        im_original = Image.fromarray(reshaped_image, 'RGB')
+        atlas_image.paste(im_original, offset)
+
+        offset = (column_counter * image_width, row_counter * (image_height * 2 + 10) + 10)
+        im_reconstructed = Image.fromarray(reshaped_reconstructed, 'RGB')
+        atlas_image.paste(im_reconstructed, offset)
+
+        offset = (column_counter * image_width, row_counter * (image_height * 2 + 10) + 10 + image_height)
+        im_forced = Image.fromarray(reshaped_forced, 'RGB')
+        atlas_image.paste(im_forced, offset)
+        column_counter += 1
+        # Go to the next row.
+        if column_counter == elements_per_row:
+            column_counter = 0
+            row_counter += 1
+
+    now = datetime.now()
+    current_time = now.strftime("%Y-%b-%d %H-%M")
     atlas_image.save('ImageOutputs/' + name_prefix + 'Image_'
                      + name_annotations + '_' + str(current_time) + '.png')
 
