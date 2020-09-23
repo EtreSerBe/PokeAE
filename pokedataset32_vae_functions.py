@@ -561,7 +561,7 @@ def export_latent_exploration_atlas(in_reconstructed_image_list, in_forced_image
     if num_elements == 0:
         return
     elements_per_row = samples_per_latent
-    total_rows = int(math.ceil(num_elements/elements_per_row))
+    total_rows = int(math.ceil(num_elements / elements_per_row))
     row_counter = 0
     column_counter = 0
     # Make it big enough to put the original above the reconstructed. (That's why multiplied by 2)
@@ -599,6 +599,38 @@ def export_latent_exploration_atlas(in_reconstructed_image_list, in_forced_image
     current_time = now.strftime("%Y-%b-%d %H-%M")
     atlas_image.save('ImageOutputs/' + name_prefix + 'Image_'
                      + name_annotations + '_' + str(current_time) + '.png')
+
+
+def export_specific_atlas(in_exporting_images, in_list_per_column=True, in_name_annotations='',
+                          in_num_columns=5, in_num_rows=3,
+                          in_target_width=128, in_target_height=128,
+                          image_width=32, image_height=32,
+                          num_channels=3):
+    row_counter = 0
+    column_counter = 0
+    # Make it big enough to put the original above the reconstructed. (That's why multiplied by 2)
+    atlas_image = Image.new('RGB', (in_target_width * in_num_columns, in_target_height * in_num_rows), (0, 0, 0))
+    for current_list in in_exporting_images:
+        # if each list is a column
+
+        for i in range(0, len(current_list)):
+            reshaped_image = np.reshape(
+                np.uint8(np.multiply(current_list[i].flatten(), 255.)),
+                [image_width, image_height, num_channels])
+            if in_list_per_column:
+                offset = (column_counter * in_target_width, i * in_target_height)
+            else:
+                offset = (i * in_target_width, column_counter * in_target_height)
+            im_object_reshaped = Image.fromarray(reshaped_image, 'RGB')
+            im_object_reshaped = im_object_reshaped.resize((in_target_width, in_target_height), Image.NEAREST)
+            atlas_image.paste(im_object_reshaped, offset)
+        column_counter += 1
+
+    now = datetime.now()
+    current_time = now.strftime("%Y-%b-%d %H-%M")
+    print('saving output Specific atlas image in the ImageOutputs folder.')
+    atlas_image.save('ImageOutputs/' + 'Results_' + 'Image_'
+                     + in_name_annotations + '_' + str(current_time) + '.png')
 
 
 def read_types_from_csv(in_csv_reader_dictionary, in_use_two_hot_encoding=True):

@@ -106,7 +106,7 @@ else:
     predicted_Y = small_Y
 
 # Add the fake types.
-poke_type_1 = 'Poison'
+poke_type_1 = 'Fire'
 poke_type_2 = 'None'
 new_types_array = utilities.generate_all_one_type(len(predicted_X),
                                                   in_type=poke_type_1, in_second_type=poke_type_2)
